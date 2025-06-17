@@ -14,10 +14,10 @@ class UserRepository: IUserRepository, IBaseRepository<User> {
         daoToModel(UserDAO.findById(id))
     }
 
-    override suspend fun findByLogin(login: String): List<User?> = suspendTransaction {
+    override suspend fun findByLogin(login: String): User? = suspendTransaction {
         UserDAO
             .find { (UserTable.login eq login) }
-            .map(::daoToModel)
+            .map(::daoToModel)[0]
     }
 
     override suspend fun findAll(): List<User?> = suspendTransaction {
