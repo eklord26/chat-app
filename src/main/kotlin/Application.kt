@@ -1,7 +1,10 @@
 package com.example
 
+import Authentication.Controllers.AuthenticationRouter
+import Registration.Controllers.RegistrationRouter
 import Users.Controllers.UserRouting
 import configureDatabases
+import configureRouting
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
 import io.ktor.server.plugins.contentnegotiation.*
@@ -20,6 +23,8 @@ fun Application.module() {
     configureMonitoring()
     configureRouting()
     UserRouting()
+    RegistrationRouter()
+    AuthenticationRouter()
 }
 
 fun Application.getApplication(): Application = this

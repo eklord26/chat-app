@@ -8,6 +8,8 @@ import Tokens.DTO.Token
 import Tokens.Interfaces.ITokenRepository
 import com.example.Base.Helpers.suspendTransaction
 import java.time.Instant
+import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 class TokenRepository: IBaseRepository<Token>, ITokenRepository {
@@ -36,9 +38,14 @@ class TokenRepository: IBaseRepository<Token>, ITokenRepository {
 
     override suspend fun create(entity: Token): Unit = suspendTransaction {
         TokenDAO.new {
-            authToken = entity.authToken
+            authToken = entity.authToken // обратите внимание на имя поля!
             encryptToken = entity.encryptToken
-            dateExpire
+            dateExpire = LocalDateTime.parse(
+                entity.dateExpire,
+                DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+            ).atZone(ZoneId.systemDefault())
+                .toInstant()
+            active = entity.active
         }
     }
 

@@ -17,7 +17,19 @@ class UserRepository: IUserRepository, IBaseRepository<User> {
     override suspend fun findByLogin(login: String): User? = suspendTransaction {
         UserDAO
             .find { (UserTable.login eq login) }
-            .map(::daoToModel)[0]
+            .map(::daoToModel).firstOrNull()
+    }
+
+    override suspend fun findByName(name: String): User? = suspendTransaction {
+        UserDAO
+            .find { (UserTable.name eq name) }
+            .map(::daoToModel).firstOrNull()
+    }
+
+    override suspend fun findLikeName(name: String): User? = suspendTransaction {
+        UserDAO
+            .find { (UserTable.name like "%${name}%") }
+            .map(::daoToModel).firstOrNull()
     }
 
     override suspend fun findAll(): List<User?> = suspendTransaction {

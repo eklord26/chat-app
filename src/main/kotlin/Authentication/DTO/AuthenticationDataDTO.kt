@@ -1,11 +1,12 @@
-package Base.DTO
+package Authentication.DTO
 
 import kotlinx.serialization.Serializable
 
-// Класс для ответа на запрос
 @Serializable
-data class ResponseDTO(
+data class AuthenticationDataDTO(
     val id: Int?,
     val status: String,
     val message: String,
+    val authToken: String?,
+    val encryptedKey: String?,
 )

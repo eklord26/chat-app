@@ -16,8 +16,10 @@ fun Application.UserRouting() {
         get("/users/id")
         {
             val id = call.request.queryParameters["id"]
+
             if (id !== null) {
                 val user = UserRepository().findById(id.toInt())
+
                 if (user !== null) {
                     call.respond(user)
                 }

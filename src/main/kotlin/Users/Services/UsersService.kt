@@ -39,4 +39,8 @@ class UsersService {
     public suspend fun checkLogin(login: String): Boolean {
         return (userRepository.findByLogin(login) !== null)
     }
+
+    public suspend fun checkDeletedByLogin(login: String): Boolean {
+        return (userRepository.findByLogin(login)?.deleted !== true)
+    }
 }
