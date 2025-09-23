@@ -7,10 +7,10 @@ class UsersService {
     private val userRepository = UserRepository()
 
     public suspend fun changeName(newName: String, id: Int): Boolean {
-        val user = userRepository.findById(id)
+        var user = userRepository.findById(id)
 
         if (user !== null) {
-            user.copy(name = newName)
+            user = user.copy(name = newName)
             userRepository.updateById(id, user)
         } else return false
         return true
@@ -18,10 +18,10 @@ class UsersService {
 
     public suspend fun changePassword(newPassword: String, id: Int): Boolean
     {
-        val user = userRepository.findById(id)
+        var user = userRepository.findById(id)
 
         if (user !== null) {
-            user.copy(passwordHash = newPassword)
+            user = user.copy(passwordHash = newPassword)
             userRepository.updateById(id, user)
         } else return false
         return true
