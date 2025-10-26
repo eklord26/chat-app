@@ -7,8 +7,7 @@ import org.jetbrains.exposed.dao.id.EntityID
 import org.jetbrains.exposed.dao.id.IntIdTable
 import org.jetbrains.exposed.sql.javatime.timestamp
 
-object ChatTable : IntIdTable("chats")
-{
+object ChatTable : IntIdTable("chats") {
     val owner = integer("owner")
     val name = text("name")
     val createdAt = timestamp("created_at")

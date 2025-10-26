@@ -17,7 +17,7 @@ class AuthenticationService {
     public suspend fun authenticate(data: AuthenticationBodyDTO, authToken: String): AuthenticationDataDTO {
         try {
             if(service.checkLogin(data.login)) {
-                if (service.checkDeletedByLogin(data.login)) {
+                if (service.checkDeletedByLogin(data.login) == true) {
 
                     val user = repo.findByLogin(data.login)
 

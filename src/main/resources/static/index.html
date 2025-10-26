@@ -1,7 +1,74 @@
-<html>
- <head>
- </head>
- <body>
-   <h1>Hello Ktor!</h1>
- </body>
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Журнал аудита безопасности</title>
+    <link rel="stylesheet" href="static/style.css">
+</head>
+<body>
+<div class="main-container">
+    <h1>Журнал аудита безопасности</h1>
+
+    <div class="controls">
+        <!-- Новые фильтры -->
+        <div class="filter-grid">
+            <select id="userFilter">
+                <option value="">-- Все пользователи --</option>
+                <!-- Пользователи будут загружены сюда -->
+            </select>
+            <select id="eventTypeFilter">
+                <option value="">-- Все типы --</option>
+                <option value="Событие">Событие</option>
+                <option value="Предупреждение">Предупреждение</option>
+                <option value="Ошибка">Ошибка</option>
+            </select>
+            <select id="eventNameFilter">
+                <option value="">-- Все события --</option>
+                <option value="USER_LOGIN">Вход пользователя</option>
+                <option value="USER_LOGOUT">Выход пользователя</option>
+                <option value="FILE_UPLOAD">Загрузка файла</option>
+                <option value="FILE_DELETE">Удаление файла</option>
+                <option value="PERMISSION_CHANGE">Смена прав</option>
+                <option value="FAILED_LOGIN_ATTEMPT">Неудачный вход</option>
+            </select>
+            <div id="ipFilterContainer" class="ip-input-container" title="IP адрес (маска)">
+                <input type="text" class="ip-octet" maxlength="3" inputmode="numeric">
+                <span class="ip-dot">.</span>
+                <input type="text" class="ip-octet" maxlength="3" inputmode="numeric">
+                <span class="ip-dot">.</span>
+                <input type="text" class="ip-octet" maxlength="3" inputmode="numeric">
+                <span class="ip-dot">.</span>
+                <input type="text" class="ip-octet" maxlength="3" inputmode="numeric">
+            </div>
+            <div class="date-range">
+                <label for="dateFromFilter">С:</label>
+                <input type="date" id="dateFromFilter">
+            </div>
+            <div class="date-range">
+                <label for="dateToFilter">По:</label>
+                <input type="date" id="dateToFilter">
+            </div>
+        </div>
+        <button id="generateReportBtn">Сформировать</button>
+    </div>
+
+    <div class="table-wrapper">
+        <table id="auditLogTable">
+            <thead>
+            <tr>
+                <th>ID События</th>
+                <th>Название</th>
+                <th>Тип</th>
+                <th>ID Пользователя</th>
+                <th>Дата и время</th>
+                <th>Описание</th>
+                <th>IP Адрес</th>
+            </tr>
+            </thead>
+            <tbody id="auditLogTableBody"></tbody>
+        </table>
+    </div>
+</div>
+<script src="static/script.js"></script>
+</body>
 </html>
