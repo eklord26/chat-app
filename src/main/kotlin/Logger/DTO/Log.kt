@@ -1,5 +1,8 @@
 package Logger.DTO
 
+import kotlinx.serialization.Serializable
+
+@Serializable
 data class Log(
     val id: Int,
     val logType: String,

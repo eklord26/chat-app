@@ -61,10 +61,7 @@ class LogRepository: ILogRepository {
             logType = log.logType
             event = log.event
             ipAddress = log.ipAddress
-            date = Instant.from(
-                DateTimeFormatter
-                    .ofPattern("yyyy-MM-dd HH:mm:ss").parse(log.date)
-            )
+            date = Instant.now()
             description = log.description
             idUser = log.idUser
             lifeTime = log.lifeTime

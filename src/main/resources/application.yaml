@@ -1,9 +1,11 @@
 ktor:
-    application:
+  development: true
+  application:
         modules:
             - com.example.ApplicationKt.module
-    deployment:
+  deployment:
         port: 8080
+        host: "0.0.0.0"
 postgres:
   url: "jdbc:postgresql://localhost:5432/chatapp"
   user: postgres

@@ -4,7 +4,7 @@ import Logger.Enums.EventType
 import Logger.Enums.LogType
 
 interface ILogger {
-    public fun create(): Unit
+    public suspend fun create(): Unit
     public fun setLogType(type: LogType): Unit
     public fun setEventType(type: EventType): Unit
     public fun setUserId(userId: Int): Unit

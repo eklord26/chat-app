@@ -70,13 +70,12 @@ document.addEventListener('DOMContentLoaded', function() {
             const row = document.createElement('tr');
             row.innerHTML = `
                 <td>${log.id}</td>
-                <td>${log.name}</td>
-                <td>${log.type}</td>
-                <td>${log.userId}</td>
-                <td>${log.timestamp}</td>
+                <td>${log.event}</td>
+                <td>${log.logType}</td>
+                <td>${log.idUser}</td>
+                <td>${log.date}</td>
                 <td>${log.description}</td>
                 <td>${log.ipAddress}</td>
-                <td>${log.ttl}</td>
             `;
             tableBody.appendChild(row);
         });
@@ -103,7 +102,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (dateFromFilter.value) params.append('dateFrom', dateFromFilter.value);
         if (dateToFilter.value) params.append('dateTo', dateToFilter.value);
 
-        const url = `/api/audit-logs?${params.toString()}`;
+        const url = `/logs`;
 
         // Выполняем запрос
         fetch(url)
