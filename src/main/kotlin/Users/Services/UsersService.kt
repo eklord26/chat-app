@@ -29,8 +29,7 @@ class UsersService {
 
     public suspend fun createUser(user: User): Int?
     {
-        if (!this.checkLogin(user.login))
-        {
+        if (!this.checkLogin(user.login)) {
             userRepository.create(user)
             return userRepository.findByLogin(user.login)?.id!!
         } else return null
@@ -38,8 +37,7 @@ class UsersService {
 
     public suspend fun updateUser(user: User): Boolean
     {
-        if (this.checkLogin(user.login) && (this.checkDeletedByLogin(user.login) == false))
-        {
+        if (this.checkLogin(user.login) && (this.checkDeletedByLogin(user.login) == false)) {
             userRepository.updateById(user.id, user)
             return true
         } else return false

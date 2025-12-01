@@ -1,6 +1,7 @@
 package com.example
 
 import Authentication.Controllers.AuthenticationRouter
+import Log.Controllers.LogRouter
 import Registration.Controllers.RegistrationRouter
 import Users.Controllers.UserRouting
 import configureDatabases
@@ -23,6 +24,7 @@ fun Application.module() {
     configureMonitoring()
     configureRouting()
     UserRouting()
+    LogRouter()
     RegistrationRouter()
     AuthenticationRouter()
 }
