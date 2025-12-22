@@ -1,4 +1,4 @@
-package Roles.Controllers
+package Rights.Controllers
 
 import io.github.smiley4.ktoropenapi.delete
 import io.github.smiley4.ktoropenapi.get
@@ -7,17 +7,17 @@ import io.ktor.server.application.*
 import io.ktor.server.routing.*
 
 // TODO добавить шифрование данных синхронным ключём
-fun Application.RoleRouting() {
+fun Application.RightRouting() {
     routing {
-        route("/roles",
+        route("/rights",
             {
-                tags = listOf("roles")
+                tags = listOf("rights")
             })
         {
             get("/{id}", {
-                operationId = "getRoleById"
-                summary = "Get role by ID"
-                description = "Retrieves detailed information for a specific role"
+                operationId = "getRightById"
+                summary = "Get right by ID"
+                description = "Retrieves detailed information for a specific right"
             }) {
 //            val users = UserRepository().findAll()
 //            call.respond(users)
@@ -40,9 +40,9 @@ fun Application.RoleRouting() {
 
             }
             delete("/{id}", {
-                operationId = "deleteRoleById"
-                summary = "Delete role by ID"
-                description = "Deletes role by ID"
+                operationId = "deleteRightById"
+                summary = "Delete right by ID"
+                description = "Deletes right by ID"
             }) {
 
             }

@@ -1,4 +1,4 @@
-package Roles.Controllers
+package Chats.Controllers
 
 import io.github.smiley4.ktoropenapi.delete
 import io.github.smiley4.ktoropenapi.get
@@ -7,17 +7,17 @@ import io.ktor.server.application.*
 import io.ktor.server.routing.*
 
 // TODO добавить шифрование данных синхронным ключём
-fun Application.RoleRouting() {
+fun Application.ChatRouting() {
     routing {
-        route("/roles",
+        route("/chats",
             {
-                tags = listOf("roles")
+                tags = listOf("chats")
             })
         {
             get("/{id}", {
-                operationId = "getRoleById"
-                summary = "Get role by ID"
-                description = "Retrieves detailed information for a specific role"
+                operationId = "getChatById"
+                summary = "Get message by ID"
+                description = "Retrieves detailed information for a specific message"
             }) {
 //            val users = UserRepository().findAll()
 //            call.respond(users)
@@ -40,9 +40,9 @@ fun Application.RoleRouting() {
 
             }
             delete("/{id}", {
-                operationId = "deleteRoleById"
-                summary = "Delete role by ID"
-                description = "Deletes role by ID"
+                operationId = "deleteChatById"
+                summary = "Delete chat by ID"
+                description = "Deletes chat by ID"
             }) {
 
             }

@@ -47,4 +47,8 @@ dependencies {
     // Testing
     testImplementation(libs.ktor.server.test.host)
     testImplementation(libs.kotlin.test.junit)
+
+    // Swagger
+    implementation(libs.ktor.swagger.ui)
+    implementation(libs.ktor.swagger.openapi)
 }
