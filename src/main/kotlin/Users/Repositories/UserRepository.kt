@@ -1,48 +1,62 @@
 package com.example.Users.Repository
 
 import Base.Interfaces.IBaseRepository
+import Users.DTO.UserFilter
 import com.example.Base.Helpers.suspendTransaction
 import com.example.Users.DAO.UserDAO
 import com.example.Users.DAO.UserTable
 import com.example.Users.DAO.daoToModel
 import com.example.Users.DTO.User
-import com.example.Users.Interfaces.IUserRepository
+import org.jetbrains.exposed.sql.Op
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.like
+import org.jetbrains.exposed.sql.and
 
 
-class UserRepository: IUserRepository, IBaseRepository<User> {
+class UserRepository: IBaseRepository<User, UserFilter> {
     override suspend fun findById(id: Int): User? = suspendTransaction {
         daoToModel(UserDAO.findById(id))
     }
 
-    override suspend fun findByLogin(login: String): User? = suspendTransaction {
-        UserDAO
-            .find { (UserTable.login eq login) }
-            .map(::daoToModel).firstOrNull()
-    }
+    override suspend fun findByFilter(filter: UserFilter): List<User?> = suspendTransaction {
+        // 1. Создаем список условий
+        val conditions = mutableListOf<Op<Boolean>>()
 
-    override suspend fun findByName(name: String): User? = suspendTransaction {
-        UserDAO
-            .find { (UserTable.name eq name) }
-            .map(::daoToModel).firstOrNull()
-    }
+        filter.login?.let {
+            conditions.add(UserTable.login eq it)
+        }
 
-    override suspend fun findLikeName(name: String): User? = suspendTransaction {
-        UserDAO
-            .find { (UserTable.name like "%${name}%") }
-            .map(::daoToModel).firstOrNull()
+        filter.name?.let {
+            conditions.add(UserTable.name like "%$it%")
+        }
+
+        filter.isAdmin?.let {
+            conditions.add(UserTable.isAdmin eq it)
+        }
+
+        filter.deleted?.let {
+            conditions.add(UserTable.deleted eq it)
+        }
+
+        if (conditions.isEmpty()) {
+            UserDAO.all().map(::daoToModel)
+        } else {
+            val finalOp = conditions.reduce { acc, op -> acc and op }
+            UserDAO.find(finalOp).map(::daoToModel)
+        }
     }
 
     override suspend fun findAll(): List<User?> = suspendTransaction {
         UserDAO.all().map(::daoToModel)
     }
 
-    override suspend fun create(user: User): Unit = suspendTransaction {
+    override suspend fun create(entity: User): Unit = suspendTransaction {
         UserDAO.new {
-            name = user.name
-            login = user.login
-            passwordHash = user.passwordHash
-            isAdmin = user.isAdmin
-            deleted = user.deleted
+            name = entity.name
+            login = entity.login
+            passwordHash = entity.passwordHash
+            isAdmin = entity.isAdmin
+            deleted = entity.deleted
         }
     }
 

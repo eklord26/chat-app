@@ -17,9 +17,9 @@ fun Application.AuthenticationRouter() {
             val auth = AuthenticationService()
             val token = call.request.headers["Auth-Token"]
 
-            if (token != null) {
-                call.respond(auth.authenticate(authData, token))
-            } else call.respond(HttpStatusCode.Unauthorized)
+//            if (token != null) {
+//                call.respond(auth.authenticate(authData, token))
+//            } else call.respond(HttpStatusCode.Unauthorized)
         }
     }
 }
