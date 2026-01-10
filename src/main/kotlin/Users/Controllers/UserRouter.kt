@@ -60,7 +60,7 @@ fun Application.UserRouting() {
                 }
             }
 
-            // 2. Метод получения по ID. Путь "/users/{id}"
+            // Метод получения по ID. Путь "/users/{id}"
             get("/{id}", {
                 tags = listOf("users")
                 summary = "Get user by ID"
