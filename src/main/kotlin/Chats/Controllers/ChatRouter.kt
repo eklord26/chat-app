@@ -28,7 +28,7 @@ fun Application.ChatRouting() {
                 request {
                     queryParameter<String>("owner") { description = "Filter by owner chats" }
                     queryParameter<String>("name") { description = "Filter by partial name of chats" }
-                    queryParameter<Boolean>("createdAt") { description = "Filter by created date" }
+                    queryParameter<String>("createdAt") { description = "Filter by created date" }
                     queryParameter<Boolean>("deleted") { description = "Filter by deleted status" }
                 }
 
