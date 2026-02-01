@@ -1,8 +1,5 @@
 package Rights.Controllers
 
-import ChatMembers.DTO.ChatMember
-import ChatMembers.DTO.ChatMemberFilter
-import ChatMembers.Repositories.ChatMemberRepository
 import Rights.DTO.Right
 import Rights.DTO.RightFilter
 import Rights.Repositories.RightRepository
@@ -74,7 +71,7 @@ fun Application.RightRouting() {
                 response {
                     HttpStatusCode.OK to {
                         description = "right found"
-                        body<ChatMember>()
+                        body<Right>()
                     }
                     HttpStatusCode.NotFound to {
                         description = "right not found"
