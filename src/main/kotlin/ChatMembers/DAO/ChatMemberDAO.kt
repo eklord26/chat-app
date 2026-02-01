@@ -14,7 +14,6 @@ object ChatMembersTable : IntIdTable("chat_members")
     val idUser = integer("id_user")
     val createdAt = timestamp("created_at")
     val deletedAt = timestamp("deleted_at")
-    val deleted = bool("deleted")
 }
 
 class ChatMemberDAO(id: EntityID<Int>) : IntEntity(id) {
@@ -25,7 +24,6 @@ class ChatMemberDAO(id: EntityID<Int>) : IntEntity(id) {
     var idUser by ChatMembersTable.idUser
     var createdAt by ChatMembersTable.createdAt
     var deletedAt by ChatMembersTable.deletedAt
-    var deleted by ChatMembersTable.deleted
 }
 
 fun daoToModel(dao: ChatMemberDAO?): ChatMember? = dao?.let {
@@ -36,6 +34,5 @@ fun daoToModel(dao: ChatMemberDAO?): ChatMember? = dao?.let {
         it.idUser,
         it.createdAt.toString(),
         it.deletedAt.toString(),
-        it.deleted
     )
 }

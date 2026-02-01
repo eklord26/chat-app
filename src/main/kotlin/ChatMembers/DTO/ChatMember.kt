@@ -7,5 +7,4 @@ data class ChatMember(
     val idUser: Int,
     val createdAt: String,
     val deletedAt: String,
-    val deleted: Boolean
 )
