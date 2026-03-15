@@ -1,50 +1,115 @@
 package Roles.Controllers
 
-import io.github.smiley4.ktoropenapi.delete
+import Roles.DTO.Role
+import Roles.DTO.RoleFilter
+import Roles.Services.RoleService
 import io.github.smiley4.ktoropenapi.get
+import io.github.smiley4.ktoropenapi.post
+import io.github.smiley4.ktoropenapi.put
+import io.github.smiley4.ktoropenapi.delete
 import io.github.smiley4.ktoropenapi.route
+import io.ktor.http.*
 import io.ktor.server.application.*
+import io.ktor.server.request.*
+import io.ktor.server.response.*
 import io.ktor.server.routing.*
 
-// TODO добавить шифрование данных синхронным ключём
 fun Application.RoleRouting() {
+
+    val service = RoleService()
+
     routing {
-        route("/roles",
-            {
-                tags = listOf("roles")
-            })
-        {
+        route("/roles", { tags = listOf("roles") }) {
+
+            get({
+                summary = "Get roles by filter"
+                request {
+                    queryParameter<String>("name") { description = "Partial name match" }
+                    queryParameter<Boolean>("isDeleted") { description = "Filter by soft-deleted status" }
+                }
+                response {
+                    HttpStatusCode.OK to { body<List<Role>>() }
+                    HttpStatusCode.NotFound to { description = "Roles not found" }
+                }
+            }) {
+                val filter = RoleFilter(
+                    name = call.request.queryParameters["name"],
+                    isDeleted = call.request.queryParameters["isDeleted"]?.toBoolean()
+                )
+
+                val roles = service.findByFilter(filter)
+
+                if (roles.isNotEmpty()) {
+                    call.respond(HttpStatusCode.OK, roles)
+                } else {
+                    call.respond(HttpStatusCode.NotFound, "Roles not found")
+                }
+            }
+
             get("/{id}", {
-                operationId = "getRoleById"
                 summary = "Get role by ID"
-                description = "Retrieves detailed information for a specific role"
+                request { pathParameter<Int>("id") { description = "Role ID" } }
+                response {
+                    HttpStatusCode.OK to { body<Role>() }
+                    HttpStatusCode.NotFound to { description = "Role not found" }
+                }
             }) {
-//            val users = UserRepository().findAll()
-//            call.respond(users)
-            }
-            post {
-//            val id = call.request.queryParameters["id"]
-//
-//            if (id !== null) {
-//                val user = UserRepository().findById(id.toInt())
-//
-//                if (user !== null) {
-//                    call.respond(user)
-//                }
-//            }
-            }
-            put {
+                val id = call.parameters["id"]?.toIntOrNull()
+                if (id == null) {
+                    call.respond(HttpStatusCode.BadRequest, "Invalid ID")
+                    return@get
+                }
 
+                val role = service.findById(id)
+                if (role != null) {
+                    call.respond(HttpStatusCode.OK, role)
+                } else {
+                    call.respond(HttpStatusCode.NotFound, "Role not found")
+                }
             }
-            patch {
 
+            post({
+                summary = "Create new role"
+                response { HttpStatusCode.Created to { description = "Role created" } }
+            }) {
+                val role = call.receive<Role>()
+                val newId = service.create(role)
+                if (newId != null) {
+                    call.respond(HttpStatusCode.Created, mapOf("id" to newId))
+                } else {
+                    call.respond(HttpStatusCode.InternalServerError)
+                }
             }
+
+            put("/{id}", {
+                summary = "Update role"
+                request { pathParameter<Int>("id") }
+            }) {
+                val id = call.parameters["id"]?.toIntOrNull()
+                if (id == null) {
+                    call.respond(HttpStatusCode.BadRequest, "Invalid ID")
+                    return@put
+                }
+                val role = call.receive<Role>()
+                val updated = service.update(id, role)
+
+                if (updated) call.respond(HttpStatusCode.OK)
+                else call.respond(HttpStatusCode.NotFound)
+            }
+
             delete("/{id}", {
-                operationId = "deleteRoleById"
-                summary = "Delete role by ID"
-                description = "Deletes role by ID"
+                summary = "Delete role"
+                request { pathParameter<Int>("id") }
             }) {
+                val id = call.parameters["id"]?.toIntOrNull()
+                if (id == null) {
+                    call.respond(HttpStatusCode.BadRequest, "Invalid ID")
+                    return@delete
+                }
 
+                val deleted = service.softDelete(id)
+                if (deleted) call.respond(HttpStatusCode.OK)
+                else call.respond(HttpStatusCode.NotFound)
             }
         }
     }

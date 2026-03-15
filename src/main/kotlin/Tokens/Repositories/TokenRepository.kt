@@ -5,14 +5,16 @@ import Tokens.DAO.TokenDAO
 import Tokens.DAO.TokenTable
 import Tokens.DAO.daoToModel
 import Tokens.DTO.Token
-import Tokens.Interfaces.ITokenRepository
+import Tokens.DTO.TokenFilter
 import com.example.Base.Helpers.suspendTransaction
+import org.jetbrains.exposed.sql.Op
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.less
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.greaterEq
+import org.jetbrains.exposed.sql.and
 import java.time.Instant
-import java.time.LocalDateTime
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 
-class TokenRepository: IBaseRepository<Token>, ITokenRepository {
+class TokenRepository : IBaseRepository<Token, TokenFilter> {
     override suspend fun findById(id: Int): Token? = suspendTransaction {
         daoToModel(TokenDAO.findById(id))
     }
@@ -21,37 +23,42 @@ class TokenRepository: IBaseRepository<Token>, ITokenRepository {
         TokenDAO.all().map(::daoToModel)
     }
 
+    override suspend fun findByFilter(filter: TokenFilter): List<Token?> = suspendTransaction {
+        val conditions = mutableListOf<Op<Boolean>>()
+
+        filter.authToken?.let { conditions.add(TokenTable.authToken eq it) }
+        filter.encryptToken?.let { conditions.add(TokenTable.encryptToken eq it) }
+        filter.active?.let { conditions.add(TokenTable.active eq it) }
+
+        filter.isExpired?.let { expired ->
+            val now = Instant.now()
+            if (expired) conditions.add(TokenTable.dateExpire less now)
+            else conditions.add(TokenTable.dateExpire greaterEq now)
+        }
+
+        if (conditions.isEmpty()) {
+            TokenDAO.all().map(::daoToModel)
+        } else {
+            val finalOp = conditions.reduce { acc, op -> acc and op }
+            TokenDAO.find(finalOp).map(::daoToModel)
+        }
+    }
+
     override suspend fun updateById(id: Int, entity: Token): Unit = suspendTransaction {
-        TokenDAO.findByIdAndUpdate(
-            id,
-            { it: TokenDAO->
-                it.encryptToken = entity.encryptToken
-                it.authToken = entity.authToken
-                it.dateExpire = Instant.from(
-                    DateTimeFormatter
-                        .ofPattern("yyyy-MM-dd HH:mm:ss").parse(entity.dateExpire)
-                )
-                it.active = entity.active
-            }
-        )
+        TokenDAO.findByIdAndUpdate(id) {
+            it.authToken = entity.authToken
+            it.encryptToken = entity.encryptToken
+            it.dateExpire = Instant.parse(entity.dateExpire)
+            it.active = entity.active
+        }
     }
 
     override suspend fun create(entity: Token): Unit = suspendTransaction {
         TokenDAO.new {
-            authToken = entity.authToken // обратите внимание на имя поля!
+            authToken = entity.authToken
             encryptToken = entity.encryptToken
-            dateExpire = LocalDateTime.parse(
-                entity.dateExpire,
-                DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
-            ).atZone(ZoneId.systemDefault())
-                .toInstant()
+            dateExpire = Instant.parse(entity.dateExpire)
             active = entity.active
         }
-    }
-
-    override suspend fun findByToken(token: String): List<Token?> = suspendTransaction {
-        TokenDAO
-            .find { (TokenTable.authToken eq token) }
-            .map(::daoToModel)
     }
 }

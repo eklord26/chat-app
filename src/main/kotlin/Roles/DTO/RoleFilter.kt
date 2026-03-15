@@ -1,11 +1,9 @@
-package Users.DTO
+package Roles.DTO
 
 import kotlinx.serialization.Serializable
 
 @Serializable
-data class UserFilter(
-    val login: String? = null,
+data class RoleFilter(
     val name: String? = null,
-    val isAdmin: Boolean? = null,
     val isDeleted: Boolean? = null
 )

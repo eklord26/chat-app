@@ -1,66 +1,73 @@
 package com.example.Users.Services
 
+import Users.DTO.UserFilter
 import com.example.Users.DTO.User
 import com.example.Users.Repository.UserRepository
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 
-class UsersService {
+class UserService {
     private val userRepository = UserRepository()
 
-    public suspend fun changeName(newName: String, id: Int): Boolean {
+    suspend fun changeName(newName: String, id: Int): Boolean {
         var user = userRepository.findById(id)
-
-        if (user !== null) {
+        if (user != null) {
             user = user.copy(name = newName)
             userRepository.updateById(id, user)
-        } else return false
-        return true
+            return true
+        }
+        return false
     }
 
-    public suspend fun changePassword(newPassword: String, id: Int): Boolean
-    {
+    suspend fun changePassword(newPassword: String, id: Int): Boolean {
         var user = userRepository.findById(id)
-
-        if (user !== null) {
+        if (user != null) {
             user = user.copy(passwordHash = newPassword)
             userRepository.updateById(id, user)
-        } else return false
-        return true
-    }
-
-    public suspend fun createUser(user: User): Int?
-    {
-        if (!this.checkLogin(user.login)) {
-            userRepository.create(user)
-            return userRepository.findByLogin(user.login)?.id!!
-        } else return null
-    }
-
-    public suspend fun updateUser(user: User): Boolean
-    {
-        if (this.checkLogin(user.login) && (this.checkDeletedByLogin(user.login) == false)) {
-            userRepository.updateById(user.id, user)
             return true
-        } else return false
+        }
+        return false
     }
 
-    public suspend fun deleteUser(id: Int): Boolean
-    {
-        val user = userRepository.findById(id)
-        if (user !== null) {
-            user.copy(deleted = true)
+    suspend fun create(user: User): Int? {
+        if (!checkLogin(user.login)) {
+            userRepository.create(user)
+            val filter = UserFilter(login = user.login)
+            return userRepository.findByFilter(filter).firstOrNull()?.id
+        }
+        return null
+    }
+
+    suspend fun update(id: Int, user: User): Boolean {
+        if (findById(id) != null) {
             userRepository.updateById(id, user)
             return true
-        } else return false
+        }
+        return false
     }
 
-    public suspend fun checkLogin(login: String): Boolean {
-        return (userRepository.findByLogin(login) !== null)
+    suspend fun delete(id: Int): Boolean {
+        val user = findById(id)
+        if (user != null) {
+            val deletedUser = user.copy(
+                deletedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+            )
+            userRepository.updateById(id, deletedUser)
+            return true
+        }
+        return false
     }
 
-    public suspend fun checkDeletedByLogin(login: String): Boolean? {
-        val user: User? = userRepository.findByLogin(login)
-        return if (user !== null) {
-            user.deleted
-        } else null
+    suspend fun checkLogin(login: String): Boolean {
+        val filter = UserFilter(login = login)
+        return userRepository.findByFilter(filter).firstOrNull() != null
+    }
+
+    suspend fun findByFilter(filter: UserFilter): List<User?> {
+        return userRepository.findByFilter(filter)
+    }
+
+    suspend fun findById(id: Int): User? {
+        return userRepository.findById(id)
     }
 }

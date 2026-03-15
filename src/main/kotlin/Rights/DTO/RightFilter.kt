@@ -6,5 +6,5 @@ import kotlinx.serialization.Serializable
 data class RightFilter(
     var idRole: Int? = null,
     var name: String? = null,
-    var deletedAt: String? = null,
+    var isDeleted: Boolean? = null
 )

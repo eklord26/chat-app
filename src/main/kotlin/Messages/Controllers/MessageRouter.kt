@@ -2,62 +2,45 @@ package Messages.Controllers
 
 import Messages.DTO.Message
 import Messages.DTO.MessageFilter
-import Messages.Repositories.MessageRepository
-import io.github.smiley4.ktoropenapi.delete
+import Messages.Services.MessageService
 import io.github.smiley4.ktoropenapi.get
+import io.github.smiley4.ktoropenapi.post
+import io.github.smiley4.ktoropenapi.put
+import io.github.smiley4.ktoropenapi.delete
 import io.github.smiley4.ktoropenapi.route
 import io.ktor.http.*
 import io.ktor.server.application.*
+import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 
-// TODO добавить шифрование данных синхронным ключём
 fun Application.MessageRouting() {
-
-    val repo = MessageRepository();
+    val service = MessageService()
 
     routing {
-        route("/messages",
-            {
-                tags = listOf("messages")
-            })
-        {
+        route("/messages", {
+            tags = listOf("messages")
+        }) {
             get({
-                tags = listOf("messages")
                 summary = "Get messages by filter"
-                description = "Retrieves a list of messages matching the filter criteria"
-
                 request {
-                    queryParameter<String>("idChatMember") { description = "Filter by owner messages" }
-                    queryParameter<String>("value") { description = "Filter by partial value of messages" }
-                    queryParameter<String>("createdAt") { description = "Filter by created date" }
-                    queryParameter<String>("deletedAt") { description = "Filter by deleted date" }
-                    queryParameter<String>("viewedAt") { description = "Filter by viewed date" }
-                    queryParameter<Boolean>("deleted") { description = "Filter by deleted status" }
-                    queryParameter<Boolean>("type") { description = "Filter by type messages" }
+                    queryParameter<Int>("idChatMember") { description = "Filter by sender member ID" }
+                    queryParameter<String>("value") { description = "Search in message text" }
+                    queryParameter<String>("type") { description = "Filter by message type (TEXT, PHOTO, etc.)" }
+                    queryParameter<Boolean>("isDeleted") { description = "Filter by soft-deleted status" }
                 }
-
                 response {
-                    HttpStatusCode.OK to {
-                        description = "List of found messages"
-                        body<List<Message>>()
-                    }
-                    HttpStatusCode.NotFound to {
-                        description = "Message not found"
-                    }
+                    HttpStatusCode.OK to { body<List<Message>>() }
+                    HttpStatusCode.NotFound to { description = "Messages not found" }
                 }
             }) {
                 val filter = MessageFilter(
-                    idChatMember = call.request.queryParameters["idChatMember"]?.toInt(),
+                    idChatMember = call.request.queryParameters["idChatMember"]?.toIntOrNull(),
                     value = call.request.queryParameters["value"],
-                    createdAt = call.request.queryParameters["createdAt"],
-                    deletedAt = call.request.queryParameters["deletedAt"],
-                    viewedAt = call.request.queryParameters["viewedAt"],
-                    deleted = call.request.queryParameters["deleted"]?.toBoolean()
+                    isDeleted = call.request.queryParameters["isDeleted"]?.toBoolean()
                 )
 
-                val messages = repo.findByFilter(filter)
-
+                val messages = service.findByFilter(filter)
                 if (messages.isNotEmpty()) {
                     call.respond(HttpStatusCode.OK, messages)
                 } else {
@@ -65,24 +48,12 @@ fun Application.MessageRouting() {
                 }
             }
 
-            // Метод получения по ID. Путь "/messages/{id}"
             get("/{id}", {
-                tags = listOf("messages")
                 summary = "Get message by ID"
-                description = "Retrieves detailed information for a specific message"
-
-                request {
-                    pathParameter<Int>("id") { description = "Message ID" }
-                }
-
+                request { pathParameter<Int>("id") }
                 response {
-                    HttpStatusCode.OK to {
-                        description = "Message found"
-                        body<Message>()
-                    }
-                    HttpStatusCode.NotFound to {
-                        description = "Message not found"
-                    }
+                    HttpStatusCode.OK to { body<Message>() }
+                    HttpStatusCode.NotFound to { description = "Message not found" }
                 }
             }) {
                 val id = call.parameters["id"]?.toIntOrNull()
@@ -91,36 +62,54 @@ fun Application.MessageRouting() {
                     return@get
                 }
 
-                val message = repo.findById(id)
+                val message = service.findById(id)
                 if (message != null) {
                     call.respond(HttpStatusCode.OK, message)
                 } else {
                     call.respond(HttpStatusCode.NotFound, "Message not found")
                 }
             }
-            post {
-//            val id = call.request.queryParameters["id"]
-//
-//            if (id !== null) {
-//                val user = UserRepository().findById(id.toInt())
-//
-//                if (user !== null) {
-//                    call.respond(user)
-//                }
-//            }
-            }
-            put {
 
-            }
-            patch {
-
-            }
-            delete("/{id}", {
-                operationId = "deleteMessageById"
-                summary = "Delete message by ID"
-                description = "Deletes message by ID"
+            post({
+                summary = "Send new message"
+                response { HttpStatusCode.Created to { description = "Message sent" } }
             }) {
+                val message = call.receive<Message>()
+                val newId = service.create(message)
+                if (newId != null) {
+                    call.respond(HttpStatusCode.Created, mapOf("id" to newId))
+                } else {
+                    call.respond(HttpStatusCode.InternalServerError)
+                }
+            }
 
+            put("/{id}", {
+                summary = "Update message content"
+                request { pathParameter<Int>("id") }
+            }) {
+                val id = call.parameters["id"]?.toIntOrNull()
+                if (id == null) {
+                    call.respond(HttpStatusCode.BadRequest, "Invalid ID")
+                    return@put
+                }
+                val message = call.receive<Message>()
+                if (service.update(id, message)) {
+                    call.respond(HttpStatusCode.OK)
+                } else {
+                    call.respond(HttpStatusCode.NotFound)
+                }
+            }
+
+            delete("/{id}", {
+                summary = "Soft delete message"
+                request { pathParameter<Int>("id") }
+            }) {
+                val id = call.parameters["id"]?.toIntOrNull()
+                if (id != null && service.softDelete(id)) {
+                    call.respond(HttpStatusCode.OK)
+                } else {
+                    call.respond(HttpStatusCode.NotFound)
+                }
             }
         }
     }

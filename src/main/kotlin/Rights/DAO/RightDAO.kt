@@ -7,11 +7,10 @@ import org.jetbrains.exposed.dao.id.EntityID
 import org.jetbrains.exposed.dao.id.IntIdTable
 import org.jetbrains.exposed.sql.javatime.timestamp
 
-object RightTable : IntIdTable("rights")
-{
+object RightTable : IntIdTable("rights") {
     val idRole = integer("id_role")
     val name = text("name")
-    val deletedAt = timestamp("deleted_at")
+    val deletedAt = timestamp("deleted_at").nullable()
 }
 
 class RightDAO(id: EntityID<Int>) : IntEntity(id) {
@@ -23,10 +22,10 @@ class RightDAO(id: EntityID<Int>) : IntEntity(id) {
 }
 
 fun daoToModel(dao: RightDAO?): Right? = dao?.let {
-    Right (
+    Right(
         it.id.value,
         it.idRole,
         it.name,
-        it.deletedAt.toString()
+        it.deletedAt?.toString()
     )
 }

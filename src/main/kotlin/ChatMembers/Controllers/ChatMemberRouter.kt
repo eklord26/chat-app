@@ -2,83 +2,59 @@ package ChatMembers.Controllers
 
 import ChatMembers.DTO.ChatMember
 import ChatMembers.DTO.ChatMemberFilter
-import ChatMembers.Repositories.ChatMemberRepository
-import io.github.smiley4.ktoropenapi.delete
+import ChatMembers.Services.ChatMemberService
 import io.github.smiley4.ktoropenapi.get
+import io.github.smiley4.ktoropenapi.post
+import io.github.smiley4.ktoropenapi.put
+import io.github.smiley4.ktoropenapi.delete
 import io.github.smiley4.ktoropenapi.route
 import io.ktor.http.*
 import io.ktor.server.application.*
+import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 
-// TODO добавить шифрование данных синхронным ключём
 fun Application.ChatMemberRouting() {
-
-    val repo = ChatMemberRepository()
+    val service = ChatMemberService()
 
     routing {
-        route("/members",
-            {
-                tags = listOf("members")
-            })
-        {
+        route("/members", {
+            tags = listOf("members")
+        }) {
             get({
-                tags = listOf("members")
                 summary = "Get members by filter"
-                description = "Retrieves a list of members matching the filter criteria"
-
                 request {
-                    queryParameter<String>("login") { description = "Filter by exact login" }
-                    queryParameter<String>("name") { description = "Filter by partial name" }
-                    queryParameter<Boolean>("isAdmin") { description = "Filter by admin status" }
-                    queryParameter<Boolean>("deleted") { description = "Filter by deleted status" }
+                    queryParameter<Int>("idChat") { description = "Filter by Chat ID" }
+                    queryParameter<Int>("idUser") { description = "Filter by User ID" }
+                    queryParameter<Int>("idRole") { description = "Filter by Role ID" }
+                    queryParameter<Boolean>("isDeleted") { description = "Filter by deleted status" }
                 }
-
                 response {
-                    HttpStatusCode.OK to {
-                        description = "List of found members"
-                        body<List<ChatMember>>()
-                    }
-                    HttpStatusCode.NotFound to {
-                        description = "Member not found"
-                    }
+                    HttpStatusCode.OK to { body<List<ChatMember>>() }
+                    HttpStatusCode.NotFound to { description = "Members not found" }
                 }
             }) {
                 val filter = ChatMemberFilter(
-                    idChat = call.request.queryParameters["idChat"]?.toInt(),
-                    idRole = call.request.queryParameters["name"]?.toInt(),
-                    idUser = call.request.queryParameters["name"]?.toInt(),
-                    createdAt = call.request.queryParameters["isAdmin"],
-                    deletedAt = call.request.queryParameters["deleted"]
+                    idChat = call.request.queryParameters["idChat"]?.toIntOrNull(),
+                    idUser = call.request.queryParameters["idUser"]?.toIntOrNull(),
+                    idRole = call.request.queryParameters["idRole"]?.toIntOrNull(),
+                    isDeleted = call.request.queryParameters["isDeleted"]?.toBoolean()
                 )
 
-                val members = repo.findByFilter(filter)
-
+                val members = service.findByFilter(filter)
                 if (members.isNotEmpty()) {
                     call.respond(HttpStatusCode.OK, members)
                 } else {
-                    call.respond(HttpStatusCode.NotFound, "Member not found")
+                    call.respond(HttpStatusCode.NotFound, "Members not found")
                 }
             }
 
-            // Метод получения по ID. Путь "/members/{id}"
             get("/{id}", {
-                tags = listOf("members")
                 summary = "Get member by ID"
-                description = "Retrieves detailed information for a specific member"
-
-                request {
-                    pathParameter<Int>("id") { description = "Member ID" }
-                }
-
+                request { pathParameter<Int>("id") }
                 response {
-                    HttpStatusCode.OK to {
-                        description = "Member found"
-                        body<ChatMember>()
-                    }
-                    HttpStatusCode.NotFound to {
-                        description = "Member not found"
-                    }
+                    HttpStatusCode.OK to { body<ChatMember>() }
+                    HttpStatusCode.NotFound to { description = "Member not found" }
                 }
             }) {
                 val id = call.parameters["id"]?.toIntOrNull()
@@ -87,38 +63,54 @@ fun Application.ChatMemberRouting() {
                     return@get
                 }
 
-                val member = repo.findById(id)
+                val member = service.findById(id)
                 if (member != null) {
                     call.respond(HttpStatusCode.OK, member)
                 } else {
                     call.respond(HttpStatusCode.NotFound, "Member not found")
                 }
             }
-            post {
-                val id = call.request.queryParameters["id"]
 
-                if ((id !== null) && id.toIntOrNull() != null) {
-                    val member = ChatMemberRepository().findById(id.toInt())
-
-                    if (member !== null) {
-                        call.respond(member)
-                    } else {
-                        call.respond(HttpStatusCode.NotFound, "Member not found")
-                    }
+            post({
+                summary = "Add member to chat"
+                response { HttpStatusCode.Created to { description = "Member added" } }
+            }) {
+                val member = call.receive<ChatMember>()
+                val newId = service.create(member)
+                if (newId != null) {
+                    call.respond(HttpStatusCode.Created, mapOf("id" to newId))
+                } else {
+                    call.respond(HttpStatusCode.InternalServerError)
                 }
             }
-            put {
 
-            }
-            patch {
-
-            }
-            delete("/{id}", {
-                operationId = "deleteMemberById"
-                summary = "Delete member by ID"
-                description = "Delete member by ID"
+            put("/{id}", {
+                summary = "Update member"
+                request { pathParameter<Int>("id") }
             }) {
+                val id = call.parameters["id"]?.toIntOrNull()
+                if (id == null) {
+                    call.respond(HttpStatusCode.BadRequest, "Invalid ID")
+                    return@put
+                }
+                val member = call.receive<ChatMember>()
+                if (service.update(id, member)) {
+                    call.respond(HttpStatusCode.OK)
+                } else {
+                    call.respond(HttpStatusCode.NotFound)
+                }
+            }
 
+            delete("/{id}", {
+                summary = "Soft delete member"
+                request { pathParameter<Int>("id") }
+            }) {
+                val id = call.parameters["id"]?.toIntOrNull()
+                if (id != null && service.softDelete(id)) {
+                    call.respond(HttpStatusCode.OK)
+                } else {
+                    call.respond(HttpStatusCode.NotFound)
+                }
             }
         }
     }
