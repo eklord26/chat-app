@@ -4,7 +4,7 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class ChatMember(
-    val id: Int,
+    val id: Int? = null,
     val idChat: Int,
     val idRole: Int,
     val idUser: Int,

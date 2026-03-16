@@ -13,7 +13,7 @@ import io.github.smiley4.ktorswaggerui.swaggerUI
 fun Application.configureSwagger() {
     install(OpenApi) {
         info {
-            title = "My Messenger API"
+            title = "Messenger Connect API"
             version = "1.0.0"
             description = "API для чатов, пользователей и сообщений"
         }

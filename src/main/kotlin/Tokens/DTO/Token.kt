@@ -4,7 +4,7 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class Token(
-    val id: Int,
+    val id: Int? = null,
     val authToken: String,
     val encryptToken: String,
     val dateExpire: String,

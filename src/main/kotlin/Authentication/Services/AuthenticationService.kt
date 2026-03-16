@@ -5,12 +5,12 @@ import Authentication.DTO.AuthenticationDataDTO
 import Passwords.Services.PasswordService
 import Tokens.Services.TokenService
 import com.example.Users.Repository.UserRepository
-import com.example.Users.Services.UsersService
+import com.example.Users.Services.UserService
 
 class AuthenticationService {
 
     private val repo = UserRepository()
-    private val service = UsersService()
+    private val service = UserService()
     private val tokenService = TokenService()
     private val passwordService = PasswordService()
 

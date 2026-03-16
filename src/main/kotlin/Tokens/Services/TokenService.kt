@@ -24,7 +24,7 @@ class TokenService {
             true
         } else {
             // Деактивируем просроченный токен
-            repo.updateById(authToken.id, authToken.copy(active = false))
+            authToken.id?.let { repo.updateById(it, authToken.copy(active = false)) }
             false
         }
     }

@@ -5,7 +5,7 @@ import kotlinx.serialization.Serializable
 // Класс для ответа на запрос
 @Serializable
 data class ResponseDTO(
-    val id: Int?,
+    val id: Int? = null,
     val status: String,
     val message: String,
 )
