@@ -6,7 +6,6 @@ plugins {
 
 group = "com.example"
 version = "0.0.1"
-val ktorVersion = "2.3.7"
 
 application {
     mainClass = "io.ktor.server.netty.EngineMain"
@@ -35,6 +34,10 @@ dependencies {
     implementation(libs.postgresql)
     implementation(libs.h2)
 
+    //Database migration
+    implementation(libs.flyway.core)
+    implementation(libs.flyway.database.postgresql)
+
     // Exposed (полный набор необходимых зависимостей)
     implementation(libs.exposed.core)
     implementation(libs.exposed.dao)
@@ -51,4 +54,8 @@ dependencies {
     // Swagger
     implementation(libs.ktor.swagger.ui)
     implementation(libs.ktor.swagger.openapi)
+
+    //Jackson
+    implementation(libs.jackson.core)
+    implementation(libs.jackson.databind)
 }

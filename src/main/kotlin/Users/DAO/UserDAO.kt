@@ -13,7 +13,7 @@ object UserTable : IntIdTable("users")
     val login = varchar("login", 255)
     val passwordHash = varchar("password_hash", 65)
     val isAdmin = bool("is_admin")
-    val deletedAt = timestamp("deletedAt")
+    val deletedAt = timestamp("deleted_at").nullable()
 }
 
 class UserDAO(id: EntityID<Int>) : IntEntity(id) {

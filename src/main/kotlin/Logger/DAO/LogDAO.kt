@@ -13,7 +13,7 @@ object LogTable : IntIdTable("logs") {
     val idUser = integer("id_user")
     val date = timestamp("date")
     val lifeTime = integer("life_time")
-    val ipAddress = varchar("id_address", 50)
+    val ipAddress = varchar("ip_address", 50)
     val description = text("description")
 }
 
