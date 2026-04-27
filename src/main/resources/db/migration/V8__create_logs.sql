@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS logs
     id_user     INTEGER                  NOT NULL,
     date        TIMESTAMP                NOT NULL DEFAULT NOW(),
     life_time   INTEGER                  NOT NULL,
-    id_address  VARCHAR(50)              NOT NULL,
+    ip_address  VARCHAR(50)              NOT NULL,
     description TEXT                     NOT NULL,
 
     CONSTRAINT fk_logs_user
