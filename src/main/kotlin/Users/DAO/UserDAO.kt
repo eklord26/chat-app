@@ -5,6 +5,7 @@ import org.jetbrains.exposed.dao.IntEntity
 import org.jetbrains.exposed.dao.IntEntityClass
 import org.jetbrains.exposed.dao.id.EntityID
 import org.jetbrains.exposed.dao.id.IntIdTable
+import org.jetbrains.exposed.sql.javatime.timestamp
 
 object UserTable : IntIdTable("users")
 {
@@ -12,7 +13,7 @@ object UserTable : IntIdTable("users")
     val login = varchar("login", 255)
     val passwordHash = varchar("password_hash", 65)
     val isAdmin = bool("is_admin")
-    val deleted = bool("deleted")
+    val deletedAt = timestamp("deleted_at").nullable()
 }
 
 class UserDAO(id: EntityID<Int>) : IntEntity(id) {
@@ -22,7 +23,7 @@ class UserDAO(id: EntityID<Int>) : IntEntity(id) {
     var login by UserTable.login
     var passwordHash by UserTable.passwordHash
     var isAdmin by UserTable.isAdmin
-    var deleted by UserTable.deleted
+    var deletedAt by UserTable.deletedAt
 }
 
 fun daoToModel(dao: UserDAO?): User? = dao?.let {
@@ -32,6 +33,6 @@ fun daoToModel(dao: UserDAO?): User? = dao?.let {
         it.login,
         it.isAdmin,
         it.passwordHash,
-        it.deleted
+        it.deletedAt.toString()
     )
 }

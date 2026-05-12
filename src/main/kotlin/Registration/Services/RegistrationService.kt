@@ -4,14 +4,15 @@ import Passwords.Builders.PasswordHashBuilder
 import Registration.DTO.RegisterBodyDTO
 import Registration.DTO.RegistrationDataDTO
 import Tokens.Services.TokenService
+import Users.DTO.UserFilter
 import com.example.Users.DTO.User
 import com.example.Users.Repository.UserRepository
-import com.example.Users.Services.UsersService
+import com.example.Users.Services.UserService
 
 class RegistrationService {
 
     private val repo = UserRepository()
-    private val service = UsersService()
+    private val service = UserService()
     private val tokenService = TokenService()
 
     public suspend fun register(data: RegisterBodyDTO): RegistrationDataDTO {
@@ -26,23 +27,26 @@ class RegistrationService {
             }
             val passwordHash = PasswordHashBuilder(data.password).build()
 
-            repo.create(User(
-                login = data.login,
-                passwordHash = passwordHash,
-                name = data.username,
-                id = 0,
-                isAdmin = false,
-                deleted = false
-            ))
+            service.create(
+                User(
+                    name = data.username,
+                    login = data.login,
+                    isAdmin = false,
+                    passwordHash = passwordHash
+                )
+            )
 
-            val token = tokenService.generateAuthToken()
-            val key = tokenService.getEncryptToken(token)
+            val filter: UserFilter = UserFilter(login = data.login,)
+            val userId = repo.findByFilter(filter).first()?.id
+                ?: throw IllegalStateException("Created user was not found by login: ${data.login}")
+            val token = tokenService.generateAuthToken(userId)
 
-            return RegistrationDataDTO(repo.findByLogin(data.login)?.id,
-                "success",
-                "Пользователь успешно создан.",
-                token,
-                tokenService.getEncryptToken(token)
+            return RegistrationDataDTO(
+                id = userId,
+                status = "success",
+                message = "Пользователь успешно создан.",
+                authToken = token,
+                encryptedKey = tokenService.getEncryptToken(token)
             )
         } catch (e: Exception) {
             throw e

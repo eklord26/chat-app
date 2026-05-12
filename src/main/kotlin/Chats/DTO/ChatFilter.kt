@@ -3,9 +3,9 @@ package Chats.DTO
 import kotlinx.serialization.Serializable
 
 @Serializable
-data class ChatFilter (
+data class ChatFilter(
     val owner: Int? = null,
-    val deleted: Boolean? = null,
+    val isDeleted: Boolean? = null,
     val createdAt: String? = null,
-    val name: String? = null,
+    val name: String? = null
 )

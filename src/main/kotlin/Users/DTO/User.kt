@@ -3,10 +3,11 @@ package com.example.Users.DTO
 import kotlinx.serialization.Serializable
 
 @Serializable
-data class User (
-    val id: Int,
+data class User(
+    val id: Int? = null,
     var name: String,
     val login: String,
     val isAdmin: Boolean,
     val passwordHash: String,
-    val deleted: Boolean)
+    val deletedAt: String? = null
+)

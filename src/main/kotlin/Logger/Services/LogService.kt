@@ -51,6 +51,13 @@ abstract class LogService: ILogCreating, ILogSearching, ILogClearing {
 
     public override suspend fun clearLogs(repository: ILogRepository, logs: List<Log>): Unit {
         _repository = repository
-        for (log in logs) _repository.delete(log.id)
+        for (log in logs)
+        {
+            if (log.id != null)
+            {
+                _repository.delete(log.id)
+            }
+
+        }
     }
 }

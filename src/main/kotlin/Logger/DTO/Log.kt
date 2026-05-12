@@ -4,7 +4,7 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class Log(
-    val id: Int,
+    val id: Int? = null,
     val logType: String,
     val event: String,
     val idUser: Int,

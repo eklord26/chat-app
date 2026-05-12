@@ -1,9 +1,12 @@
 package Chats.DTO
 
-data class Chat (
-    val id: Int,
+import kotlinx.serialization.Serializable
+
+@Serializable
+data class Chat(
+    val id: Int? = null,
     val name: String,
     val owner: Int,
-    val deleted: Boolean,
     val createdAt: String,
+    val deletedAt: String? = null
 )

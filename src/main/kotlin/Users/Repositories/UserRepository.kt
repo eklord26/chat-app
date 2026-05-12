@@ -9,9 +9,10 @@ import com.example.Users.DAO.daoToModel
 import com.example.Users.DTO.User
 import org.jetbrains.exposed.sql.Op
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.isNotNull
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.isNull
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.like
 import org.jetbrains.exposed.sql.and
-
 
 class UserRepository: IBaseRepository<User, UserFilter> {
     override suspend fun findById(id: Int): User? = suspendTransaction {
@@ -19,23 +20,15 @@ class UserRepository: IBaseRepository<User, UserFilter> {
     }
 
     override suspend fun findByFilter(filter: UserFilter): List<User?> = suspendTransaction {
-        // 1. Создаем список условий
         val conditions = mutableListOf<Op<Boolean>>()
 
-        filter.login?.let {
-            conditions.add(UserTable.login eq it)
-        }
+        filter.login?.let { conditions.add(UserTable.login eq it) }
+        filter.name?.let { conditions.add(UserTable.name like "%$it%") }
+        filter.isAdmin?.let { conditions.add(UserTable.isAdmin eq it) }
 
-        filter.name?.let {
-            conditions.add(UserTable.name like "%$it%")
-        }
-
-        filter.isAdmin?.let {
-            conditions.add(UserTable.isAdmin eq it)
-        }
-
-        filter.deleted?.let {
-            conditions.add(UserTable.deleted eq it)
+        filter.isDeleted?.let { isDeleted ->
+            if (isDeleted) conditions.add(UserTable.deletedAt.isNotNull())
+            else conditions.add(UserTable.deletedAt.isNull())
         }
 
         if (conditions.isEmpty()) {
@@ -56,20 +49,17 @@ class UserRepository: IBaseRepository<User, UserFilter> {
             login = entity.login
             passwordHash = entity.passwordHash
             isAdmin = entity.isAdmin
-            deleted = entity.deleted
+            deletedAt = entity.deletedAt?.let { java.time.Instant.parse(it) }!!
         }
     }
 
     override suspend fun updateById(id: Int, entity: User): Unit = suspendTransaction {
-        UserDAO.findByIdAndUpdate(
-            id,
-            { it: UserDAO ->
-                it.name = entity.name
-                it.login = entity.login
-                it.passwordHash = entity.passwordHash
-                it.isAdmin = entity.isAdmin
-                it.deleted = entity.deleted
-            }
-        )
+        UserDAO.findByIdAndUpdate(id) {
+            it.name = entity.name
+            it.login = entity.login
+            it.passwordHash = entity.passwordHash
+            it.isAdmin = entity.isAdmin
+            it.deletedAt = entity.deletedAt?.let { date -> java.time.Instant.parse(date) }!!
+        }
     }
 }

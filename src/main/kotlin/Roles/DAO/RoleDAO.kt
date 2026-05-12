@@ -5,24 +5,25 @@ import org.jetbrains.exposed.dao.IntEntity
 import org.jetbrains.exposed.dao.IntEntityClass
 import org.jetbrains.exposed.dao.id.EntityID
 import org.jetbrains.exposed.dao.id.IntIdTable
+import org.jetbrains.exposed.sql.javatime.timestamp
+import java.time.format.DateTimeFormatter
 
-object RoleTable : IntIdTable("roles")
-{
+object RoleTable : IntIdTable("roles") {
     val name = text("name")
-    val deleted = bool("deleted")
+    val deletedAt = timestamp("deleted_at").nullable()
 }
 
 class RoleDAO(id: EntityID<Int>) : IntEntity(id) {
     companion object : IntEntityClass<RoleDAO>(RoleTable)
 
     var name by RoleTable.name
-    var deleted by RoleTable.deleted
+    var deletedAt by RoleTable.deletedAt
 }
 
 fun daoToModel(dao: RoleDAO?): Role? = dao?.let {
-    Role (
+    Role(
         it.id.value,
         it.name,
-        it.deleted
+        it.deletedAt?.toString()
     )
 }

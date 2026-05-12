@@ -3,10 +3,12 @@
 h2-version = "2.3.232"
 kotlin-version = "2.1.10"
 ktor-version = "3.1.2"
-logback-version = "1.4.14"
-postgres-version = "42.7.5"
+logback-version = "1.5.13"
+postgres-version = "42.7.7"
 exposed-version = "0.50.0"
+flyway-version = "10.1.0"
 swagger-version = "5.2.0"
+jackson-version = "2.17.2"
 
 [libraries]
 ktor-server-core = { module = "io.ktor:ktor-server-core", version.ref = "ktor-version" }
@@ -28,6 +30,12 @@ exposed-jdbc = { module = "org.jetbrains.exposed:exposed-jdbc", version.ref = "e
 exposed-java-time = { module = "org.jetbrains.exposed:exposed-java-time", version.ref = "exposed-version" }
 ktor-swagger-ui = { module = "io.github.smiley4:ktor-swagger-ui", version.ref = "swagger-version" }
 ktor-swagger-openapi = {module = "io.github.smiley4:ktor-openapi", version.ref = "swagger-version"}
+flyway-core = {module = "org.flywaydb:flyway-core", version.ref = "flyway-version"}
+flyway-database-postgresql = {module = "org.flywaydb:flyway-database-postgresql", version.ref = "flyway-version"}
+jackson-core = { module = "com.fasterxml.jackson.core:jackson-core", version.ref = "jackson-version" }
+jackson-databind = { module = "com.fasterxml.jackson.core:jackson-databind", version.ref = "jackson-version" }
+jackson-annotations = { module = "com.fasterxml.jackson.core:jackson-annotations", version.ref = "jackson-version" }
+
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin-version" }
