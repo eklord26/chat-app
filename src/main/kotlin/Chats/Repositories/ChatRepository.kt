@@ -7,6 +7,8 @@ import Chats.DAO.daoToModel
 import Chats.DTO.Chat
 import Chats.DTO.ChatFilter
 import com.example.Base.Helpers.suspendTransaction
+import com.example.Users.DAO.UserTable
+import org.jetbrains.exposed.dao.id.EntityID
 import org.jetbrains.exposed.sql.Op
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.isNotNull
@@ -27,7 +29,7 @@ class ChatRepository : IBaseRepository<Chat, ChatFilter> {
     override suspend fun findByFilter(filter: ChatFilter): List<Chat?> = suspendTransaction {
         val conditions = mutableListOf<Op<Boolean>>()
 
-        filter.owner?.let { conditions.add(ChatTable.owner eq it) }
+        filter.owner?.let { conditions.add(ChatTable.owner eq EntityID(it, UserTable)) }
         filter.name?.let { conditions.add(ChatTable.name like "%$it%") }
 
         filter.isDeleted?.let { isDeleted ->
@@ -49,7 +51,7 @@ class ChatRepository : IBaseRepository<Chat, ChatFilter> {
 
     override suspend fun updateById(id: Int, entity: Chat): Unit = suspendTransaction {
         ChatDAO.findByIdAndUpdate(id) {
-            it.owner = entity.owner
+            it.owner = EntityID(entity.owner, UserTable)
             it.name = entity.name
             it.deletedAt = entity.deletedAt?.let { date -> Instant.parse(date) }
         }
@@ -57,7 +59,7 @@ class ChatRepository : IBaseRepository<Chat, ChatFilter> {
 
     override suspend fun create(entity: Chat): Unit = suspendTransaction {
         ChatDAO.new {
-            owner = entity.owner
+            owner = EntityID(entity.owner, UserTable)
             name = entity.name
             createdAt = Instant.now()
             deletedAt = null

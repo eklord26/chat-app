@@ -7,6 +7,8 @@ import Messages.DAO.daoToModel
 import Messages.DTO.Message
 import Messages.DTO.MessageFilter
 import com.example.Base.Helpers.suspendTransaction
+import ChatMembers.DAO.ChatMembersTable
+import org.jetbrains.exposed.dao.id.EntityID
 import org.jetbrains.exposed.sql.Op
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.isNotNull
@@ -28,7 +30,7 @@ class MessageRepository : IBaseRepository<Message, MessageFilter> {
     override suspend fun findByFilter(filter: MessageFilter): List<Message?> = suspendTransaction {
         val conditions = mutableListOf<Op<Boolean>>()
 
-        filter.idChatMember?.let { conditions.add(MessageTable.idChatMember eq it) }
+        filter.idChatMember?.let { conditions.add(MessageTable.idChatMember eq EntityID(it, ChatMembersTable)) }
         filter.value?.let { conditions.add(MessageTable.value like "%$it%") }
         filter.type?.let { conditions.add(MessageTable.type eq it.string) }
 
@@ -50,7 +52,7 @@ class MessageRepository : IBaseRepository<Message, MessageFilter> {
 
     override suspend fun updateById(id: Int, entity: Message): Unit = suspendTransaction {
         MessageDAO.findByIdAndUpdate(id) {
-            it.idChatMember = entity.idChatMember
+            it.idChatMember = EntityID(entity.idChatMember, ChatMembersTable)
             it.value = entity.value
             it.type = entity.type?.string ?: "text"
             it.viewedAt = entity.viewedAt?.let { date -> Instant.parse(date) }
@@ -60,7 +62,7 @@ class MessageRepository : IBaseRepository<Message, MessageFilter> {
 
     override suspend fun create(entity: Message): Unit = suspendTransaction {
         MessageDAO.new {
-            idChatMember = entity.idChatMember
+            idChatMember = EntityID(entity.idChatMember, ChatMembersTable)
             value = entity.value
             type = entity.type?.string ?: "text"
             createdAt = Instant.now()

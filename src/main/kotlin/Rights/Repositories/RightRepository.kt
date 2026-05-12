@@ -6,7 +6,9 @@ import Rights.DAO.RightTable
 import Rights.DAO.daoToModel
 import Rights.DTO.Right
 import Rights.DTO.RightFilter
+import Roles.DAO.RoleTable
 import com.example.Base.Helpers.suspendTransaction
+import org.jetbrains.exposed.dao.id.EntityID
 import org.jetbrains.exposed.sql.Op
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.isNotNull
@@ -27,7 +29,7 @@ class RightRepository : IBaseRepository<Right, RightFilter> {
     override suspend fun findByFilter(filter: RightFilter): List<Right?> = suspendTransaction {
         val conditions = mutableListOf<Op<Boolean>>()
 
-        filter.idRole?.let { conditions.add(RightTable.idRole eq it) }
+        filter.idRole?.let { conditions.add(RightTable.idRole eq EntityID(it, RoleTable)) }
 
         filter.name?.let { conditions.add(RightTable.name like "%$it%") }
 
@@ -47,7 +49,7 @@ class RightRepository : IBaseRepository<Right, RightFilter> {
     override suspend fun updateById(id: Int, entity: Right): Unit = suspendTransaction {
         RightDAO.findByIdAndUpdate(id) {
             it.name = entity.name
-            it.idRole = entity.idRole
+            it.idRole = EntityID(entity.idRole, RoleTable)
             it.deletedAt = entity.deletedAt?.let { Instant.parse(it) }
         }
     }
@@ -55,7 +57,7 @@ class RightRepository : IBaseRepository<Right, RightFilter> {
     override suspend fun create(entity: Right): Unit = suspendTransaction {
         RightDAO.new {
             name = entity.name
-            idRole = entity.idRole
+            idRole = EntityID(entity.idRole, RoleTable)
             deletedAt = null
         }
     }

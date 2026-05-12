@@ -1,18 +1,20 @@
 package Messages.DAO
 
+import ChatMembers.DAO.ChatMembersTable
 import Messages.DTO.Message
 import Messages.Enum.MessageTypeEnum.Companion.getEnumByType
 import org.jetbrains.exposed.dao.IntEntity
 import org.jetbrains.exposed.dao.IntEntityClass
 import org.jetbrains.exposed.dao.id.EntityID
 import org.jetbrains.exposed.dao.id.IntIdTable
+import org.jetbrains.exposed.sql.javatime.CurrentTimestamp
 import org.jetbrains.exposed.sql.javatime.timestamp
 
 object MessageTable : IntIdTable("messages") {
-    val idChatMember = integer("id_chat_member")
+    val idChatMember = reference("id_chat_member", ChatMembersTable)
     val value = text("value")
     val type = text("type")
-    val createdAt = timestamp("created_at")
+    val createdAt = timestamp("created_at").defaultExpression(CurrentTimestamp)
     val viewedAt = timestamp("viewed_at").nullable()
     val deletedAt = timestamp("deleted_at").nullable()
 }
@@ -31,7 +33,7 @@ class MessageDAO(id: EntityID<Int>) : IntEntity(id) {
 fun daoToModel(dao: MessageDAO?): Message? = dao?.let {
     Message(
         it.id.value,
-        it.idChatMember,
+        it.idChatMember.value,
         it.value,
         getEnumByType(it.type),
         it.createdAt.toString(),

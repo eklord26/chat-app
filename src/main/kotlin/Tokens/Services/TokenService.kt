@@ -32,7 +32,7 @@ class TokenService {
     /**
      * Генерация нового набора токенов.
      */
-    suspend fun generateAuthToken(): String {
+    suspend fun generateAuthToken(idUser: Int): String {
         val authToken = generateToken()
         val encryptToken = generateToken()
 
@@ -40,6 +40,7 @@ class TokenService {
 
         val token = Token(
             id = 0,
+            idUser = idUser,
             authToken = authToken,
             encryptToken = encryptToken,
             dateExpire = expireDate.toString(),

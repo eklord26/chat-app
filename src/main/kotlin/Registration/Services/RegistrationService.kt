@@ -36,12 +36,13 @@ class RegistrationService {
                 )
             )
 
-            val token = tokenService.generateAuthToken()
-            val key = tokenService.getEncryptToken(token)
             val filter: UserFilter = UserFilter(login = data.login,)
+            val userId = repo.findByFilter(filter).first()?.id
+                ?: throw IllegalStateException("Created user was not found by login: ${data.login}")
+            val token = tokenService.generateAuthToken(userId)
 
             return RegistrationDataDTO(
-                id = repo.findByFilter(filter).first()?.id,
+                id = userId,
                 status = "success",
                 message = "Пользователь успешно создан.",
                 authToken = token,

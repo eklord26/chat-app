@@ -6,7 +6,11 @@ import ChatMembers.DAO.ChatMembersTable
 import ChatMembers.DAO.daoToModel
 import ChatMembers.DTO.ChatMember
 import ChatMembers.DTO.ChatMemberFilter
+import Chats.DAO.ChatTable
+import Roles.DAO.RoleTable
 import com.example.Base.Helpers.suspendTransaction
+import com.example.Users.DAO.UserTable
+import org.jetbrains.exposed.dao.id.EntityID
 import org.jetbrains.exposed.sql.Op
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.isNotNull
@@ -26,9 +30,9 @@ class ChatMemberRepository : IBaseRepository<ChatMember, ChatMemberFilter> {
     override suspend fun findByFilter(filter: ChatMemberFilter): List<ChatMember?> = suspendTransaction {
         val conditions = mutableListOf<Op<Boolean>>()
 
-        filter.idChat?.let { conditions.add(ChatMembersTable.idChat eq it) }
-        filter.idRole?.let { conditions.add(ChatMembersTable.idRole eq it) }
-        filter.idUser?.let { conditions.add(ChatMembersTable.idUser eq it) }
+        filter.idChat?.let { conditions.add(ChatMembersTable.idChat eq EntityID(it, ChatTable)) }
+        filter.idRole?.let { conditions.add(ChatMembersTable.idRole eq EntityID(it, RoleTable)) }
+        filter.idUser?.let { conditions.add(ChatMembersTable.idUser eq EntityID(it, UserTable)) }
 
         filter.isDeleted?.let { isDeleted ->
             if (isDeleted) conditions.add(ChatMembersTable.deletedAt.isNotNull())
@@ -45,18 +49,18 @@ class ChatMemberRepository : IBaseRepository<ChatMember, ChatMemberFilter> {
 
     override suspend fun updateById(id: Int, entity: ChatMember): Unit = suspendTransaction {
         ChatMemberDAO.findByIdAndUpdate(id) {
-            it.idChat = entity.idChat
-            it.idRole = entity.idRole
-            it.idUser = entity.idUser
+            it.idChat = EntityID(entity.idChat, ChatTable)
+            it.idRole = EntityID(entity.idRole, RoleTable)
+            it.idUser = EntityID(entity.idUser, UserTable)
             it.deletedAt = entity.deletedAt?.let { date -> Instant.parse(date) }
         }
     }
 
     override suspend fun create(entity: ChatMember): Unit = suspendTransaction {
         ChatMemberDAO.new {
-            idChat = entity.idChat
-            idRole = entity.idRole
-            idUser = entity.idUser
+            idChat = EntityID(entity.idChat, ChatTable)
+            idRole = EntityID(entity.idRole, RoleTable)
+            idUser = EntityID(entity.idUser, UserTable)
             createdAt = Instant.now()
             deletedAt = null
         }
