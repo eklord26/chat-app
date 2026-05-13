@@ -7,7 +7,6 @@ data class Token(
     val id: Int? = null,
     val idUser: Int? = null,
     val authToken: String,
-    val encryptToken: String,
     val dateExpire: String,
     val active: Boolean,
     val deletedAt: String? = null

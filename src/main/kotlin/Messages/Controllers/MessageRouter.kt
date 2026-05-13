@@ -3,6 +3,7 @@ package Messages.Controllers
 import Messages.DTO.Message
 import Messages.DTO.MessageFilter
 import Messages.Services.MessageService
+import Tokens.Services.AuthGuard
 import io.github.smiley4.ktoropenapi.get
 import io.github.smiley4.ktoropenapi.post
 import io.github.smiley4.ktoropenapi.put
@@ -16,6 +17,7 @@ import io.ktor.server.routing.*
 
 fun Application.MessageRouting() {
     val service = MessageService()
+    val authGuard = AuthGuard()
 
     routing {
         route("/messages", {
@@ -34,6 +36,7 @@ fun Application.MessageRouting() {
                     HttpStatusCode.NotFound to { description = "Messages not found" }
                 }
             }) {
+                authGuard.requireUserId(call) ?: return@get
                 val filter = MessageFilter(
                     idChatMember = call.request.queryParameters["idChatMember"]?.toIntOrNull(),
                     value = call.request.queryParameters["value"],
@@ -56,6 +59,7 @@ fun Application.MessageRouting() {
                     HttpStatusCode.NotFound to { description = "Message not found" }
                 }
             }) {
+                authGuard.requireUserId(call) ?: return@get
                 val id = call.parameters["id"]?.toIntOrNull()
                 if (id == null) {
                     call.respond(HttpStatusCode.BadRequest, "Invalid ID")
@@ -74,6 +78,7 @@ fun Application.MessageRouting() {
                 summary = "Send new message"
                 response { HttpStatusCode.Created to { description = "Message sent" } }
             }) {
+                authGuard.requireUserId(call) ?: return@post
                 val message = call.receive<Message>()
                 val newId = service.create(message)
                 if (newId != null) {
@@ -87,6 +92,7 @@ fun Application.MessageRouting() {
                 summary = "Update message content"
                 request { pathParameter<Int>("id") }
             }) {
+                authGuard.requireUserId(call) ?: return@put
                 val id = call.parameters["id"]?.toIntOrNull()
                 if (id == null) {
                     call.respond(HttpStatusCode.BadRequest, "Invalid ID")
@@ -104,6 +110,7 @@ fun Application.MessageRouting() {
                 summary = "Soft delete message"
                 request { pathParameter<Int>("id") }
             }) {
+                authGuard.requireUserId(call) ?: return@delete
                 val id = call.parameters["id"]?.toIntOrNull()
                 if (id != null && service.softDelete(id)) {
                     call.respond(HttpStatusCode.OK)

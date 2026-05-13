@@ -3,11 +3,12 @@ package com.example.Users.Services
 import Users.DTO.UserFilter
 import com.example.Users.DTO.User
 import com.example.Users.Repository.UserRepository
+import io.ktor.server.application.ApplicationEnvironment
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
-class UserService {
-    private val userRepository = UserRepository()
+class UserService(environment: ApplicationEnvironment? = null) {
+    private val userRepository = UserRepository(environment)
 
     suspend fun changeName(newName: String, id: Int): Boolean {
         var user = userRepository.findById(id)

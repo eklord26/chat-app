@@ -3,6 +3,7 @@ package com.example
 import Authentication.Controllers.AuthenticationRouter
 import ChatMembers.Controllers.ChatMemberRouting
 import Chats.Controllers.ChatRouting
+import Encryption.Controllers.EncryptionRouting
 import Log.Controllers.LogRouter
 import Messages.Controllers.MessageRouting
 import Registration.Controllers.RegistrationRouter
@@ -33,6 +34,7 @@ fun Application.module() {
     RoleRouting()
     MessageRouting()
     ChatRouting()
+    EncryptionRouting()
     UserRouting()
     RightRouting()
     LogRouter()

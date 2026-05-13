@@ -3,6 +3,7 @@ package Roles.Controllers
 import Roles.DTO.Role
 import Roles.DTO.RoleFilter
 import Roles.Services.RoleService
+import Tokens.Services.AuthGuard
 import io.github.smiley4.ktoropenapi.get
 import io.github.smiley4.ktoropenapi.post
 import io.github.smiley4.ktoropenapi.put
@@ -17,6 +18,7 @@ import io.ktor.server.routing.*
 fun Application.RoleRouting() {
 
     val service = RoleService()
+    val authGuard = AuthGuard()
 
     routing {
         route("/roles", { tags = listOf("roles") }) {
@@ -32,6 +34,7 @@ fun Application.RoleRouting() {
                     HttpStatusCode.NotFound to { description = "Roles not found" }
                 }
             }) {
+                authGuard.requireUserId(call) ?: return@get
                 val filter = RoleFilter(
                     name = call.request.queryParameters["name"],
                     isDeleted = call.request.queryParameters["isDeleted"]?.toBoolean()
@@ -54,6 +57,7 @@ fun Application.RoleRouting() {
                     HttpStatusCode.NotFound to { description = "Role not found" }
                 }
             }) {
+                authGuard.requireUserId(call) ?: return@get
                 val id = call.parameters["id"]?.toIntOrNull()
                 if (id == null) {
                     call.respond(HttpStatusCode.BadRequest, "Invalid ID")
@@ -72,6 +76,7 @@ fun Application.RoleRouting() {
                 summary = "Create new role"
                 response { HttpStatusCode.Created to { description = "Role created" } }
             }) {
+                authGuard.requireUserId(call) ?: return@post
                 val role = call.receive<Role>()
                 val newId = service.create(role)
                 if (newId != null) {
@@ -85,6 +90,7 @@ fun Application.RoleRouting() {
                 summary = "Update role"
                 request { pathParameter<Int>("id") }
             }) {
+                authGuard.requireUserId(call) ?: return@put
                 val id = call.parameters["id"]?.toIntOrNull()
                 if (id == null) {
                     call.respond(HttpStatusCode.BadRequest, "Invalid ID")
@@ -101,6 +107,7 @@ fun Application.RoleRouting() {
                 summary = "Delete role"
                 request { pathParameter<Int>("id") }
             }) {
+                authGuard.requireUserId(call) ?: return@delete
                 val id = call.parameters["id"]?.toIntOrNull()
                 if (id == null) {
                     call.respond(HttpStatusCode.BadRequest, "Invalid ID")

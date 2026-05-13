@@ -12,3 +12,7 @@ postgres:
   password: postgres
 hash:
   defaultCost: 12
+encryption:
+  # Override in production with CHAT_APP_MASTER_KEY_BASE64 or this config value.
+  # Must be a Base64 encoded 32-byte AES key.
+  masterKeyBase64: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="

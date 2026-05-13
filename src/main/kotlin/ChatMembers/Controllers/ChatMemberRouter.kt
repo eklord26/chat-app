@@ -3,6 +3,7 @@ package ChatMembers.Controllers
 import ChatMembers.DTO.ChatMember
 import ChatMembers.DTO.ChatMemberFilter
 import ChatMembers.Services.ChatMemberService
+import Tokens.Services.AuthGuard
 import io.github.smiley4.ktoropenapi.get
 import io.github.smiley4.ktoropenapi.post
 import io.github.smiley4.ktoropenapi.put
@@ -15,7 +16,8 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 
 fun Application.ChatMemberRouting() {
-    val service = ChatMemberService()
+    val service = ChatMemberService(environment)
+    val authGuard = AuthGuard()
 
     routing {
         route("/members", {
@@ -34,6 +36,7 @@ fun Application.ChatMemberRouting() {
                     HttpStatusCode.NotFound to { description = "Members not found" }
                 }
             }) {
+                authGuard.requireUserId(call) ?: return@get
                 val filter = ChatMemberFilter(
                     idChat = call.request.queryParameters["idChat"]?.toIntOrNull(),
                     idUser = call.request.queryParameters["idUser"]?.toIntOrNull(),
@@ -57,6 +60,7 @@ fun Application.ChatMemberRouting() {
                     HttpStatusCode.NotFound to { description = "Member not found" }
                 }
             }) {
+                authGuard.requireUserId(call) ?: return@get
                 val id = call.parameters["id"]?.toIntOrNull()
                 if (id == null) {
                     call.respond(HttpStatusCode.BadRequest, "Invalid ID")
@@ -75,6 +79,7 @@ fun Application.ChatMemberRouting() {
                 summary = "Add member to chat"
                 response { HttpStatusCode.Created to { description = "Member added" } }
             }) {
+                authGuard.requireUserId(call) ?: return@post
                 val member = call.receive<ChatMember>()
                 val newId = service.create(member)
                 if (newId != null) {
@@ -88,6 +93,7 @@ fun Application.ChatMemberRouting() {
                 summary = "Update member"
                 request { pathParameter<Int>("id") }
             }) {
+                authGuard.requireUserId(call) ?: return@put
                 val id = call.parameters["id"]?.toIntOrNull()
                 if (id == null) {
                     call.respond(HttpStatusCode.BadRequest, "Invalid ID")
@@ -105,6 +111,7 @@ fun Application.ChatMemberRouting() {
                 summary = "Soft delete member"
                 request { pathParameter<Int>("id") }
             }) {
+                authGuard.requireUserId(call) ?: return@delete
                 val id = call.parameters["id"]?.toIntOrNull()
                 if (id != null && service.softDelete(id)) {
                     call.respond(HttpStatusCode.OK)
