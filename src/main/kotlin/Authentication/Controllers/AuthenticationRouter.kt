@@ -14,12 +14,10 @@ fun Application.AuthenticationRouter() {
         post("/authentication")
         {
             val authData = call.receive<AuthenticationBodyDTO>()
-            val auth = AuthenticationService()
-            val token = call.request.headers["Auth-Token"]
-
-//            if (token != null) {
-//                call.respond(auth.authenticate(authData, token))
-//            } else call.respond(HttpStatusCode.Unauthorized)
+            val auth = AuthenticationService(environment)
+            val result = auth.authenticate(authData)
+            val status = if (result.status == "success") HttpStatusCode.OK else HttpStatusCode.Unauthorized
+            call.respond(status, result)
         }
     }
 }

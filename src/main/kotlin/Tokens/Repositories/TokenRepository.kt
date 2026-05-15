@@ -32,7 +32,6 @@ class TokenRepository : IBaseRepository<Token, TokenFilter> {
 
         filter.idUser?.let { conditions.add(TokenTable.idUser eq EntityID(it, UserTable)) }
         filter.authToken?.let { conditions.add(TokenTable.authToken eq it) }
-        filter.encryptToken?.let { conditions.add(TokenTable.encryptToken eq it) }
         filter.active?.let { conditions.add(TokenTable.active eq it) }
 
         filter.isExpired?.let { expired ->
@@ -58,7 +57,6 @@ class TokenRepository : IBaseRepository<Token, TokenFilter> {
         TokenDAO.findByIdAndUpdate(id) {
             it.idUser = entity.idUser?.let { idUser -> EntityID(idUser, UserTable) }
             it.authToken = entity.authToken
-            it.encryptToken = entity.encryptToken
             it.dateExpire = Instant.parse(entity.dateExpire)
             it.active = entity.active
             it.deletedAt = entity.deletedAt?.let { date -> Instant.parse(date) }
@@ -69,7 +67,6 @@ class TokenRepository : IBaseRepository<Token, TokenFilter> {
         TokenDAO.new {
             idUser = entity.idUser?.let { idUser -> EntityID(idUser, UserTable) }
             authToken = entity.authToken
-            encryptToken = entity.encryptToken
             dateExpire = Instant.parse(entity.dateExpire)
             active = entity.active
             deletedAt = null

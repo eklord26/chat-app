@@ -3,10 +3,13 @@ package ChatMembers.Services
 import ChatMembers.DTO.ChatMember
 import ChatMembers.DTO.ChatMemberFilter
 import ChatMembers.Repositories.ChatMemberRepository
+import Encryption.Services.ChatEncryptionKeyService
+import io.ktor.server.application.ApplicationEnvironment
 import java.time.Instant
 
-class ChatMemberService {
+class ChatMemberService(environment: ApplicationEnvironment? = null) {
     private val repository = ChatMemberRepository()
+    private val encryptionKeyService = ChatEncryptionKeyService(environment)
 
     suspend fun findById(id: Int): ChatMember? = repository.findById(id)
 
@@ -14,10 +17,12 @@ class ChatMemberService {
 
     suspend fun create(member: ChatMember): Int? {
         repository.create(member)
-        // Поиск созданного участника для возврата ID
-        return repository.findByFilter(
+        val newId = repository.findByFilter(
             ChatMemberFilter(idChat = member.idChat, idUser = member.idUser)
         ).firstOrNull()?.id
+
+        encryptionKeyService.rotateForUser(member.idChat, member.idUser)
+        return newId
     }
 
     suspend fun update(id: Int, member: ChatMember): Boolean {
@@ -33,6 +38,14 @@ class ChatMemberService {
         if (member != null) {
             val deletedMember = member.copy(deletedAt = Instant.now().toString())
             repository.updateById(id, deletedMember)
+
+            val remainingMember = repository.findByFilter(
+                ChatMemberFilter(idChat = member.idChat, isDeleted = false)
+            ).filterNotNull().firstOrNull()
+
+            if (remainingMember != null) {
+                encryptionKeyService.rotateForUser(member.idChat, remainingMember.idUser)
+            }
             return true
         }
         return false

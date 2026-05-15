@@ -8,5 +8,4 @@ data class RegistrationDataDTO(
     val status: String,
     val message: String,
     val authToken: String?,
-    val encryptedKey: String?,
 )

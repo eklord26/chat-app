@@ -1,6 +1,8 @@
 package com.example
 
+import Encryption.DTO.EncryptedSocketMessage
 import io.ktor.http.*
+import io.ktor.serialization.kotlinx.KotlinxWebsocketSerializationConverter
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
 import io.ktor.server.http.content.*
@@ -11,6 +13,7 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import io.ktor.websocket.*
+import kotlinx.serialization.json.Json
 import java.sql.Connection
 import java.sql.DriverManager
 import java.time.Duration
@@ -19,6 +22,7 @@ import org.slf4j.event.*
 
 fun Application.configureSockets() {
     install(WebSockets) {
+        contentConverter = KotlinxWebsocketSerializationConverter(Json)
         pingPeriod = 15.seconds
         timeout = 15.seconds
         maxFrameSize = Long.MAX_VALUE
@@ -29,7 +33,22 @@ fun Application.configureSockets() {
             for (frame in incoming) {
                 if (frame is Frame.Text) {
                     val text = frame.readText()
-                    outgoing.send(Frame.Text("YOU SAID: $text"))
+                    val encryptedMessage = runCatching {
+                        Json.decodeFromString<EncryptedSocketMessage>(text)
+                    }.getOrNull()
+
+                    if (encryptedMessage != null && encryptedMessage.isEncrypted) {
+                        outgoing.send(
+                            Frame.Text(
+                                Json.encodeToString(
+                                    EncryptedSocketMessage.serializer(),
+                                    encryptedMessage
+                                )
+                            )
+                        )
+                    } else {
+                        outgoing.send(Frame.Text("YOU SAID: $text"))
+                    }
                     if (text.equals("bye", ignoreCase = true)) {
                         close(CloseReason(CloseReason.Codes.NORMAL, "Client said BYE"))
                     }

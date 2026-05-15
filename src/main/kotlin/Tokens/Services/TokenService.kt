@@ -1,65 +1,63 @@
 package Tokens.Services
 
-import Base.Helpers.EncriptionHelper
 import Tokens.DTO.Token
 import Tokens.DTO.TokenFilter
 import Tokens.Repositories.TokenRepository
+import java.security.SecureRandom
 import java.time.Instant
 import java.time.temporal.ChronoUnit
+import java.util.Base64
 
 class TokenService {
     private val repo = TokenRepository()
+    private val secureRandom = SecureRandom()
 
-    /**
-     * Проверка валидности токена.
-     */
     suspend fun checkToken(token: String): Boolean {
-        val filter = TokenFilter(authToken = token, active = true)
-        val authToken = repo.findByFilter(filter).firstOrNull() ?: return false
-
+        val authToken = findActiveToken(token) ?: return false
         val expireDate = Instant.parse(authToken.dateExpire)
-        val now = Instant.now()
 
-        return if (now.isBefore(expireDate)) {
+        return if (Instant.now().isBefore(expireDate)) {
             true
         } else {
-            // Деактивируем просроченный токен
             authToken.id?.let { repo.updateById(it, authToken.copy(active = false)) }
             false
         }
     }
 
-    /**
-     * Генерация нового набора токенов.
-     */
+    suspend fun getUserIdByToken(token: String): Int? {
+        if (!checkToken(token)) return null
+        return findActiveToken(token)?.idUser
+    }
+
     suspend fun generateAuthToken(idUser: Int): String {
         val authToken = generateToken()
-        val encryptToken = generateToken()
-
         val expireDate = Instant.now().plus(30, ChronoUnit.DAYS)
 
-        val token = Token(
-            id = 0,
-            idUser = idUser,
-            authToken = authToken,
-            encryptToken = encryptToken,
-            dateExpire = expireDate.toString(),
-            active = true
+        repo.create(
+            Token(
+                id = 0,
+                idUser = idUser,
+                authToken = authToken,
+                dateExpire = expireDate.toString(),
+                active = true
+            )
         )
-        repo.create(token)
 
         return authToken
     }
 
-    /**
-     * Получение ключа шифрования по токену авторизации.
-     */
-    suspend fun getEncryptToken(token: String): String? {
-        val filter = TokenFilter(authToken = token, active = true)
-        return repo.findByFilter(filter).firstOrNull()?.encryptToken
+    private suspend fun findActiveToken(token: String): Token? {
+        val filter = TokenFilter(authToken = token, active = true, isDeleted = false)
+        return repo.findByFilter(filter).firstOrNull()
     }
 
     private fun generateToken(): String {
-        return EncriptionHelper().generateRandomString()
+        val bytes = ByteArray(TOKEN_SIZE_BYTES)
+        secureRandom.nextBytes(bytes)
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
+    }
+
+    private companion object {
+        const val TOKEN_SIZE_BYTES = 32
     }
 }

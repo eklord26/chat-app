@@ -1,6 +1,7 @@
 package Users.Controllers
 
 import Users.DTO.UserFilter
+import Tokens.Services.AuthGuard
 import com.example.Users.DTO.User
 import com.example.Users.Services.UserService
 import io.github.smiley4.ktoropenapi.delete
@@ -16,7 +17,8 @@ import io.ktor.server.routing.*
 
 fun Application.UserRouting() {
 
-    val service = UserService()
+    val service = UserService(environment)
+    val authGuard = AuthGuard()
 
     routing {
         route("/users", { tags = listOf("users") }) {
@@ -34,6 +36,7 @@ fun Application.UserRouting() {
                     HttpStatusCode.NotFound to { description = "User not found" }
                 }
             }) {
+                authGuard.requireUserId(call) ?: return@get
                 val filter = UserFilter(
                     login = call.request.queryParameters["login"],
                     name = call.request.queryParameters["name"],
@@ -58,6 +61,7 @@ fun Application.UserRouting() {
                     HttpStatusCode.NotFound to { description = "User not found" }
                 }
             }) {
+                authGuard.requireUserId(call) ?: return@get
                 val id = call.parameters["id"]?.toIntOrNull()
                 if (id == null) {
                     call.respond(HttpStatusCode.BadRequest, "Invalid ID")
@@ -76,33 +80,39 @@ fun Application.UserRouting() {
                 summary = "Create user"
                 response { HttpStatusCode.Created to { description = "User created" } }
             }) {
+                authGuard.requireUserId(call) ?: return@post
                 val user = call.receive<User>()
-                val newId = service.create(user)
-                if (newId != null) {
-                    call.respond(HttpStatusCode.Created, mapOf("id" to newId))
-                } else {
-                    call.respond(HttpStatusCode.Conflict, "Login already exists")
-                }
+                runCatching { service.create(user) }
+                    .onSuccess { newId ->
+                        if (newId != null) call.respond(HttpStatusCode.Created, mapOf("id" to newId))
+                        else call.respond(HttpStatusCode.Conflict, "Login already exists")
+                    }
+                    .onFailure { call.respond(HttpStatusCode.BadRequest, it.message ?: "Invalid user data") }
             }
 
             put("/{id}", {
                 summary = "Update user"
                 request { pathParameter<Int>("id") }
             }) {
+                authGuard.requireUserId(call) ?: return@put
                 val id = call.parameters["id"]?.toIntOrNull()
                 if (id == null) {
                     call.respond(HttpStatusCode.BadRequest, "Invalid ID")
                     return@put
                 }
                 val user = call.receive<User>()
-                val updated = service.update(id, user)
-                if (updated) call.respond(HttpStatusCode.OK)
-                else call.respond(HttpStatusCode.NotFound)
+                runCatching { service.update(id, user) }
+                    .onSuccess { updated ->
+                        if (updated) call.respond(HttpStatusCode.OK)
+                        else call.respond(HttpStatusCode.NotFound)
+                    }
+                    .onFailure { call.respond(HttpStatusCode.BadRequest, it.message ?: "Invalid user data") }
             }
 
             delete("/{id}", {
                 summary = "Delete user by ID"
             }) {
+                authGuard.requireUserId(call) ?: return@delete
                 val id = call.parameters["id"]?.toIntOrNull()
                 if (id == null) {
                     call.respond(HttpStatusCode.BadRequest, "Invalid ID")

@@ -55,6 +55,10 @@ class MessageRepository : IBaseRepository<Message, MessageFilter> {
             it.idChatMember = EntityID(entity.idChatMember, ChatMembersTable)
             it.value = entity.value
             it.type = entity.type?.string ?: "text"
+            it.isEncrypted = entity.isEncrypted
+            it.encryptionAlgorithm = entity.encryptionAlgorithm
+            it.encryptionKeyVersion = entity.encryptionKeyVersion
+            it.encryptionNonce = entity.encryptionNonce
             it.viewedAt = entity.viewedAt?.let { date -> Instant.parse(date) }
             it.deletedAt = entity.deletedAt?.let { date -> Instant.parse(date) }
         }
@@ -65,6 +69,10 @@ class MessageRepository : IBaseRepository<Message, MessageFilter> {
             idChatMember = EntityID(entity.idChatMember, ChatMembersTable)
             value = entity.value
             type = entity.type?.string ?: "text"
+            isEncrypted = entity.isEncrypted
+            encryptionAlgorithm = entity.encryptionAlgorithm
+            encryptionKeyVersion = entity.encryptionKeyVersion
+            encryptionNonce = entity.encryptionNonce
             createdAt = Instant.now()
             viewedAt = null
             deletedAt = null

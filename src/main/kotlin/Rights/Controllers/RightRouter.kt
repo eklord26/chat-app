@@ -3,6 +3,7 @@ package Rights.Controllers
 import Rights.DTO.Right
 import Rights.DTO.RightFilter
 import Rights.Services.RightService
+import Tokens.Services.AuthGuard
 import io.github.smiley4.ktoropenapi.get
 import io.github.smiley4.ktoropenapi.post
 import io.github.smiley4.ktoropenapi.put
@@ -16,6 +17,7 @@ import io.ktor.server.routing.*
 
 fun Application.RightRouting() {
     val service = RightService()
+    val authGuard = AuthGuard()
 
     routing {
         route("/rights", {
@@ -33,6 +35,7 @@ fun Application.RightRouting() {
                     HttpStatusCode.NotFound to { description = "Rights not found" }
                 }
             }) {
+                authGuard.requireUserId(call) ?: return@get
                 val filter = RightFilter(
                     idRole = call.request.queryParameters["idRole"]?.toIntOrNull(),
                     name = call.request.queryParameters["name"],
@@ -55,6 +58,7 @@ fun Application.RightRouting() {
                     HttpStatusCode.NotFound to { description = "Right not found" }
                 }
             }) {
+                authGuard.requireUserId(call) ?: return@get
                 val id = call.parameters["id"]?.toIntOrNull()
                 if (id == null) {
                     call.respond(HttpStatusCode.BadRequest, "Invalid ID")
@@ -73,6 +77,7 @@ fun Application.RightRouting() {
                 summary = "Create new right"
                 response { HttpStatusCode.Created to { description = "Right created" } }
             }) {
+                authGuard.requireUserId(call) ?: return@post
                 val right = call.receive<Right>()
                 val newId = service.create(right)
                 if (newId != null) {
@@ -86,6 +91,7 @@ fun Application.RightRouting() {
                 summary = "Update right"
                 request { pathParameter<Int>("id") }
             }) {
+                authGuard.requireUserId(call) ?: return@put
                 val id = call.parameters["id"]?.toIntOrNull()
                 if (id == null) {
                     call.respond(HttpStatusCode.BadRequest, "Invalid ID")
@@ -103,6 +109,7 @@ fun Application.RightRouting() {
                 summary = "Soft delete right"
                 request { pathParameter<Int>("id") }
             }) {
+                authGuard.requireUserId(call) ?: return@delete
                 val id = call.parameters["id"]?.toIntOrNull()
                 if (id != null && service.softDelete(id)) {
                     call.respond(HttpStatusCode.OK)
