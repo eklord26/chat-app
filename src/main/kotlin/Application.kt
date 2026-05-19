@@ -3,13 +3,17 @@ package com.example
 import Authentication.Controllers.AuthenticationRouter
 import ChatMembers.Controllers.ChatMemberRouting
 import Chats.Controllers.ChatRouting
+import Contacts.Controllers.ContactRouting
 import Encryption.Controllers.EncryptionRouting
+import Invitations.Controllers.ChatInvitationRouting
+import Invitations.Controllers.ContactInvitationRouting
 import Log.Controllers.LogRouter
 import Messages.Controllers.MessageRouting
 import Registration.Controllers.RegistrationRouter
 import Roles.Controllers.RoleRouting
 import Rights.Controllers.RightRouting
 import Users.Controllers.UserRouting
+import Web.Endpoints.WebEndpointRouting
 import configureDatabases
 import configureRouting
 import configureSwagger
@@ -31,6 +35,10 @@ fun Application.module() {
     configureMonitoring()
     configureRouting()
     ChatMemberRouting()
+    ContactRouting()
+    ContactInvitationRouting()
+    ChatInvitationRouting()
+    WebEndpointRouting()
     RoleRouting()
     MessageRouting()
     ChatRouting()

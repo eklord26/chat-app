@@ -1,0 +1,93 @@
+package Web.Endpoints
+
+import Chats.DTO.Chat
+import Contacts.DTO.Contact
+import Invitations.DTO.ChatInvitation
+import Invitations.DTO.ContactInvitation
+import Web.DTO.ChatEndpointDTO
+import Web.DTO.ChatInvitationEndpointDTO
+import Web.DTO.ContactEndpointDTO
+import Web.DTO.ContactInvitationEndpointDTO
+import Web.DTO.UserEndpointDTO
+import com.example.Users.DTO.User
+
+fun User.toEndpointDTO(): UserEndpointDTO? {
+    val userId = id ?: return null
+    return UserEndpointDTO(
+        id = userId,
+        name = name,
+        login = login,
+        email = email,
+        phone = phone,
+        fio = fio,
+        isAdmin = isAdmin
+    )
+}
+
+fun Contact.toEndpointDTO(contactUser: UserEndpointDTO?): ContactEndpointDTO? {
+    val contactId = id ?: return null
+    return ContactEndpointDTO(
+        id = contactId,
+        ownerUserId = ownerUserId,
+        contactUserId = contactUserId,
+        displayName = displayName,
+        contact = contactUser,
+        createdAt = createdAt,
+        deletedAt = deletedAt
+    )
+}
+
+fun Chat.toEndpointDTO(ownerUser: UserEndpointDTO?, currentUserMemberId: Int? = null): ChatEndpointDTO? {
+    val chatId = id ?: return null
+    return ChatEndpointDTO(
+        id = chatId,
+        name = name,
+        owner = owner,
+        ownerUser = ownerUser,
+        currentUserMemberId = currentUserMemberId,
+        createdAt = createdAt,
+        deletedAt = deletedAt
+    )
+}
+
+fun ContactInvitation.toEndpointDTO(
+    sender: UserEndpointDTO?,
+    receiver: UserEndpointDTO?
+): ContactInvitationEndpointDTO? {
+    val invitationId = id ?: return null
+    return ContactInvitationEndpointDTO(
+        id = invitationId,
+        senderUserId = senderUserId,
+        receiverUserId = receiverUserId,
+        sender = sender,
+        receiver = receiver,
+        status = status,
+        message = message,
+        createdAt = createdAt,
+        respondedAt = respondedAt,
+        deletedAt = deletedAt
+    )
+}
+
+fun ChatInvitation.toEndpointDTO(
+    chat: ChatEndpointDTO?,
+    inviter: UserEndpointDTO?,
+    invitee: UserEndpointDTO?
+): ChatInvitationEndpointDTO? {
+    val invitationId = id ?: return null
+    return ChatInvitationEndpointDTO(
+        id = invitationId,
+        idChat = idChat,
+        chat = chat,
+        inviterUserId = inviterUserId,
+        inviteeUserId = inviteeUserId,
+        inviter = inviter,
+        invitee = invitee,
+        idRole = idRole,
+        status = status,
+        message = message,
+        createdAt = createdAt,
+        respondedAt = respondedAt,
+        deletedAt = deletedAt
+    )
+}
