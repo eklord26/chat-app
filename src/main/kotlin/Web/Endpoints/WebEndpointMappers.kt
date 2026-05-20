@@ -1,13 +1,16 @@
 package Web.Endpoints
 
 import Chats.DTO.Chat
+import ChatMembers.DTO.ChatMember
 import Contacts.DTO.Contact
 import Invitations.DTO.ChatInvitation
 import Invitations.DTO.ContactInvitation
+import Messages.DTO.Message
 import Web.DTO.ChatEndpointDTO
 import Web.DTO.ChatInvitationEndpointDTO
 import Web.DTO.ContactEndpointDTO
 import Web.DTO.ContactInvitationEndpointDTO
+import Web.DTO.MessageEndpointDTO
 import Web.DTO.UserEndpointDTO
 import com.example.Users.DTO.User
 
@@ -88,6 +91,27 @@ fun ChatInvitation.toEndpointDTO(
         message = message,
         createdAt = createdAt,
         respondedAt = respondedAt,
+        deletedAt = deletedAt
+    )
+}
+
+fun Message.toEndpointDTO(
+    member: ChatMember,
+    sender: UserEndpointDTO?,
+    currentUserId: Int
+): MessageEndpointDTO? {
+    val messageId = id ?: return null
+    return MessageEndpointDTO(
+        id = messageId,
+        idChatMember = idChatMember,
+        idChat = member.idChat,
+        senderUserId = member.idUser,
+        sender = sender,
+        value = value,
+        type = type?.string ?: "text",
+        isMine = member.idUser == currentUserId,
+        createdAt = createdAt,
+        viewedAt = viewedAt,
         deletedAt = deletedAt
     )
 }

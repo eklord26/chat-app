@@ -482,6 +482,20 @@ button {
     background: #dff4ef;
 }
 
+.bubble-meta {
+    margin-top: 6px;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.composer-form {
+    flex-wrap: nowrap;
+}
+
+.composer-form .input {
+    min-width: 0;
+}
+
 .settings-list {
     display: grid;
     gap: 12px;

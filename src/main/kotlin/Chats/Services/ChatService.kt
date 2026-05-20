@@ -15,7 +15,7 @@ class ChatService {
     suspend fun create(chat: Chat): Int? {
         repository.create(chat)
         return repository.findByFilter(ChatFilter(name = chat.name, owner = chat.owner))
-            .firstOrNull()?.id
+            .lastOrNull()?.id
     }
 
     suspend fun update(id: Int, chat: Chat): Boolean {

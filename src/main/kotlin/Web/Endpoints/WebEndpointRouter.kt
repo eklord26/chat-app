@@ -1,7 +1,9 @@
 package Web.Endpoints
 
+import ChatMembers.DTO.ChatMember
 import ChatMembers.DTO.ChatMemberFilter
 import ChatMembers.Services.ChatMemberService
+import Chats.DTO.Chat
 import Chats.Services.ChatService
 import Contacts.DTO.ContactFilter
 import Contacts.Services.ContactService
@@ -12,10 +14,16 @@ import Invitations.DTO.ContactInvitationFilter
 import Invitations.Enums.InvitationStatusEnum
 import Invitations.Services.ChatInvitationService
 import Invitations.Services.ContactInvitationService
+import Messages.DTO.Message
+import Messages.DTO.MessageFilter
+import Messages.Enum.MessageTypeEnum
+import Messages.Services.MessageService
+import Web.DTO.CreateChatEndpointDTO
 import Tokens.Services.AuthGuard
 import Users.DTO.UserFilter
 import Web.DTO.CreateChatInvitationEndpointDTO
 import Web.DTO.CreateContactInvitationEndpointDTO
+import Web.DTO.CreateMessageEndpointDTO
 import Web.DTO.UpdateProfileEndpointDTO
 import Web.Services.DesignSettingsService
 import com.example.Users.Services.UserService
@@ -34,9 +42,23 @@ fun Application.WebEndpointRouting() {
     val chatInvitationService = ChatInvitationService()
     val chatMemberService = ChatMemberService(environment)
     val chatService = ChatService()
+    val messageService = MessageService()
     val designSettingsService = DesignSettingsService(environment)
 
     suspend fun userById(id: Int) = userService.findById(id)?.toEndpointDTO()
+    suspend fun activeMember(chatId: Int, userId: Int) = chatMemberService.findByFilter(
+        ChatMemberFilter(idChat = chatId, idUser = userId, isDeleted = false)
+    ).filterNotNull().firstOrNull()
+
+    suspend fun activeMembers(chatId: Int) = chatMemberService.findByFilter(
+        ChatMemberFilter(idChat = chatId, isDeleted = false)
+    ).filterNotNull()
+
+    suspend fun requireActiveMember(chatId: Int, userId: Int): ChatMember? {
+        val chat = chatService.findById(chatId)
+        if (chat == null || chat.deletedAt != null) return null
+        return activeMember(chatId, userId)
+    }
 
     routing {
         route("/web") {
@@ -103,20 +125,149 @@ fun Application.WebEndpointRouting() {
                 else call.respond(HttpStatusCode.NotFound, "Contacts not found")
             }
 
-            get("/chats") {
-                val currentUserId = authGuard.requireUserId(call) ?: return@get
-                val memberships = chatMemberService.findByFilter(
-                    ChatMemberFilter(idUser = currentUserId, isDeleted = false)
-                ).filterNotNull()
+            route("/chats") {
+                get {
+                    val currentUserId = authGuard.requireUserId(call) ?: return@get
+                    val memberships = chatMemberService.findByFilter(
+                        ChatMemberFilter(idUser = currentUserId, isDeleted = false)
+                    ).filterNotNull()
 
-                val chats = memberships.mapNotNull { member ->
-                    val chat = chatService.findById(member.idChat) ?: return@mapNotNull null
-                    if (chat.deletedAt != null) return@mapNotNull null
-                    chat.toEndpointDTO(userById(chat.owner), member.id)
+                    val chats = memberships.mapNotNull { member ->
+                        val chat = chatService.findById(member.idChat) ?: return@mapNotNull null
+                        if (chat.deletedAt != null) return@mapNotNull null
+                        chat.toEndpointDTO(userById(chat.owner), member.id)
+                    }
+
+                    if (chats.isNotEmpty()) call.respond(HttpStatusCode.OK, chats)
+                    else call.respond(HttpStatusCode.NotFound, "Chats not found")
                 }
 
-                if (chats.isNotEmpty()) call.respond(HttpStatusCode.OK, chats)
-                else call.respond(HttpStatusCode.NotFound, "Chats not found")
+                post {
+                    val currentUserId = authGuard.requireUserId(call) ?: return@post
+                    val body = call.receive<CreateChatEndpointDTO>()
+                    val name = body.name.trim()
+
+                    if (name.isBlank()) {
+                        call.respond(HttpStatusCode.BadRequest, "Chat name is required")
+                        return@post
+                    }
+
+                    runCatching {
+                        val now = Instant.now().toString()
+                        val chatId = chatService.create(
+                            Chat(name = name, owner = currentUserId, createdAt = now)
+                        ) ?: error("Chat was not created")
+
+                        chatMemberService.create(
+                            ChatMember(
+                                idChat = chatId,
+                                idRole = body.idRole,
+                                idUser = currentUserId,
+                                createdAt = now
+                            )
+                        )
+
+                        chatService.findById(chatId)?.toEndpointDTO(
+                            ownerUser = userById(currentUserId),
+                            currentUserMemberId = activeMember(chatId, currentUserId)?.id
+                        ) ?: error("Created chat was not found")
+                    }
+                        .onSuccess { chat -> call.respond(HttpStatusCode.Created, chat) }
+                        .onFailure {
+                            call.respond(HttpStatusCode.BadRequest, it.message ?: "Invalid chat data")
+                        }
+                }
+
+                get("/{id}/messages") {
+                    val currentUserId = authGuard.requireUserId(call) ?: return@get
+                    val chatId = call.parameters["id"]?.toIntOrNull()
+                    if (chatId == null) {
+                        call.respond(HttpStatusCode.BadRequest, "Invalid chat ID")
+                        return@get
+                    }
+
+                    if (requireActiveMember(chatId, currentUserId) == null) {
+                        call.respond(HttpStatusCode.Forbidden, "Chat is not available")
+                        return@get
+                    }
+
+                    val members = activeMembers(chatId)
+                        .mapNotNull { member -> member.id?.let { memberId -> memberId to member } }
+                        .toMap()
+                    val messages = members.values.flatMap { member ->
+                        messageService.findByFilter(
+                            MessageFilter(idChatMember = member.id, isDeleted = false)
+                        ).filterNotNull()
+                    }.sortedBy { it.createdAt }
+                        .mapNotNull { message ->
+                            val member = members[message.idChatMember] ?: return@mapNotNull null
+                            message.toEndpointDTO(
+                                member = member,
+                                sender = userById(member.idUser),
+                                currentUserId = currentUserId
+                            )
+                        }
+
+                    call.respond(HttpStatusCode.OK, messages)
+                }
+
+                post("/{id}/messages") {
+                    val currentUserId = authGuard.requireUserId(call) ?: return@post
+                    val chatId = call.parameters["id"]?.toIntOrNull()
+                    if (chatId == null) {
+                        call.respond(HttpStatusCode.BadRequest, "Invalid chat ID")
+                        return@post
+                    }
+
+                    val member = requireActiveMember(chatId, currentUserId)
+                    if (member == null) {
+                        call.respond(HttpStatusCode.Forbidden, "Chat is not available")
+                        return@post
+                    }
+
+                    val memberId = member.id
+                    if (memberId == null) {
+                        call.respond(HttpStatusCode.InternalServerError)
+                        return@post
+                    }
+
+                    val body = call.receive<CreateMessageEndpointDTO>()
+                    val value = body.value.trim()
+                    if (value.isBlank()) {
+                        call.respond(HttpStatusCode.BadRequest, "Message text is required")
+                        return@post
+                    }
+
+                    val type = MessageTypeEnum.getEnumByType(body.type.lowercase())
+                    if (type == null) {
+                        call.respond(HttpStatusCode.BadRequest, "Unsupported message type")
+                        return@post
+                    }
+
+                    val newId = messageService.create(
+                        Message(
+                            idChatMember = memberId,
+                            value = value,
+                            type = type,
+                            createdAt = Instant.now().toString()
+                        )
+                    )
+
+                    val message = newId?.let { messageService.findById(it) }
+                    if (message == null) {
+                        call.respond(HttpStatusCode.InternalServerError)
+                        return@post
+                    }
+
+                    call.respond(
+                        HttpStatusCode.Created,
+                        message.toEndpointDTO(
+                            member = member,
+                            sender = userById(currentUserId),
+                            currentUserId = currentUserId
+                        ) ?: mapOf("id" to newId)
+                    )
+                }
             }
 
             route("/contact-invitations") {
@@ -221,8 +372,8 @@ fun Application.WebEndpointRouting() {
                     val invitations = chatInvitationService.findByFilter(filter)
                         .filterNotNull()
                         .mapNotNull { invitation ->
-                            val chat = chatService.findById(invitation.idChat)
-                                ?.toEndpointDTO(userById(invitation.inviterUserId))
+                            val sourceChat = chatService.findById(invitation.idChat)
+                            val chat = sourceChat?.toEndpointDTO(userById(sourceChat.owner))
 
                             invitation.toEndpointDTO(
                                 chat = chat,
@@ -238,6 +389,17 @@ fun Application.WebEndpointRouting() {
                 post {
                     val currentUserId = authGuard.requireUserId(call) ?: return@post
                     val body = call.receive<CreateChatInvitationEndpointDTO>()
+                    val chat = chatService.findById(body.idChat)
+                    if (chat == null || chat.deletedAt != null || activeMember(body.idChat, currentUserId) == null) {
+                        call.respond(HttpStatusCode.Forbidden, "Chat is not available")
+                        return@post
+                    }
+
+                    if (activeMember(body.idChat, body.inviteeUserId) != null) {
+                        call.respond(HttpStatusCode.BadRequest, "User is already in chat")
+                        return@post
+                    }
+
                     runCatching {
                         chatInvitationService.create(
                             ChatInvitation(

@@ -14,6 +14,7 @@ const state = {
     chatInvitationsIn: [],
     chatInvitationsOut: [],
     selectedChatId: null,
+    messages: {},
     message: "",
     messageType: "error",
     loading: false,
@@ -170,9 +171,20 @@ async function loadContacts() {
 
 async function loadChats() {
     state.chats = await api("/web/chats").catch(() => []);
+    if (state.selectedChatId && !state.chats.some(chat => chat.id === state.selectedChatId)) {
+        state.selectedChatId = null;
+    }
     if (!state.selectedChatId && state.chats.length > 0) {
         state.selectedChatId = state.chats[0].id;
     }
+    if (state.selectedChatId) {
+        await loadMessages(state.selectedChatId);
+    }
+}
+
+async function loadMessages(chatId) {
+    if (!chatId) return;
+    state.messages[chatId] = await api(`/web/chats/${chatId}/messages`).catch(() => []);
 }
 
 async function loadContactInvitations() {
@@ -295,6 +307,44 @@ async function sendChatInvitation(form) {
         });
         await loadChatInvitations();
         setMessage("Приглашение в чат отправлено", "success");
+    } catch (error) {
+        setMessage(error.message);
+    }
+}
+
+async function createChat(form) {
+    const body = Object.fromEntries(new FormData(form).entries());
+    try {
+        const chat = await api("/web/chats", {
+            method: "POST",
+            body: JSON.stringify({
+                name: body.name,
+                idRole: Number(body.idRole || 1)
+            })
+        });
+        state.selectedChatId = chat.id;
+        await loadChats();
+        setMessage("Чат создан", "success");
+    } catch (error) {
+        setMessage(error.message);
+    }
+}
+
+async function sendMessage(form) {
+    const selectedChatId = Number(form.dataset.chatId);
+    const body = Object.fromEntries(new FormData(form).entries());
+
+    try {
+        await api(`/web/chats/${selectedChatId}/messages`, {
+            method: "POST",
+            body: JSON.stringify({
+                value: body.value,
+                type: "text"
+            })
+        });
+        form.reset();
+        await loadMessages(selectedChatId);
+        render();
     } catch (error) {
         setMessage(error.message);
     }
@@ -540,9 +590,18 @@ function renderInvitationList(kind, invitations, actionable) {
 
 function renderChats() {
     const selected = state.chats.find(chat => chat.id === state.selectedChatId) || state.chats[0];
+    const messages = selected ? (state.messages[selected.id] || []) : [];
     return `
         ${topbar("Чаты", "Список доступных чатов и приглашения участников.")}
         <div class="grid two-col" style="margin-bottom:16px">
+            <section class="card">
+                <h2 class="section-title">Создать чат</h2>
+                <form class="form" data-form="chat-create" style="margin-top:14px">
+                    <label class="field"><span>Название</span><input class="input" name="name" maxlength="120" required></label>
+                    <label class="field"><span>ID роли владельца</span><input class="input" name="idRole" type="number" min="1" value="1" required></label>
+                    <button class="btn" type="submit">Создать</button>
+                </form>
+            </section>
             <section class="card">
                 <h2 class="section-title">Пригласить в чат</h2>
                 <form class="form" data-form="chat-invite" style="margin-top:14px">
@@ -557,11 +616,11 @@ function renderChats() {
                     <button class="btn" type="submit" ${state.chats.length ? "" : "disabled"}>Отправить приглашение</button>
                 </form>
             </section>
-            <section class="card">
-                <div class="section-head"><h2 class="section-title">Входящие приглашения в чаты</h2></div>
-                ${renderInvitationList("chat", state.chatInvitationsIn, true)}
-            </section>
         </div>
+        <section class="card" style="margin-bottom:16px">
+            <div class="section-head"><h2 class="section-title">Входящие приглашения в чаты</h2></div>
+            ${renderInvitationList("chat", state.chatInvitationsIn, true)}
+        </section>
         <section class="chat-layout">
             <div class="chat-list">
                 ${state.chats.length ? state.chats.map(chat => `
@@ -573,21 +632,30 @@ function renderChats() {
             <div class="chat-panel">
                 <header class="chat-header">
                     <strong>${escapeHtml(selected?.name || "Выберите чат")}</strong>
-                    <div class="muted">${selected ? `Владелец: ${escapeHtml(selected.ownerUser?.name || selected.owner)}` : "Сообщения подключим следующим этапом"}</div>
+                    <div class="muted">${selected ? `Владелец: ${escapeHtml(selected.ownerUser?.name || selected.owner)}` : "Выберите чат, чтобы увидеть сообщения"}</div>
                 </header>
                 <div class="messages">
-                    <div class="bubble">Экран чата готов к подключению `/messages` или отдельного `/web/chats/{id}/messages`.</div>
-                    <div class="bubble mine">Сейчас отображается структура диалога и выбор чата.</div>
+                    ${selected ? renderMessages(messages) : `<div class="empty">Выберите чат.</div>`}
                 </div>
                 <div class="composer">
-                    <div class="button-row">
-                        <input class="input" placeholder="Сообщение будет подключено следующим backend endpoint" disabled>
-                        <button class="btn" disabled>Отправить</button>
-                    </div>
+                    <form class="button-row composer-form" data-form="message" data-chat-id="${selected?.id || ""}">
+                        <input class="input" name="value" placeholder="Сообщение" maxlength="4000" ${selected ? "required" : "disabled"}>
+                        <button class="btn" type="submit" ${selected ? "" : "disabled"}>Отправить</button>
+                    </form>
                 </div>
             </div>
         </section>
     `;
+}
+
+function renderMessages(messages) {
+    if (!messages.length) return `<div class="empty">Сообщений пока нет.</div>`;
+    return messages.map(message => `
+        <article class="bubble ${message.isMine ? "mine" : ""}">
+            <div>${escapeHtml(message.value)}</div>
+            <div class="bubble-meta">${escapeHtml(message.sender?.name || `ID ${message.senderUserId}`)} · ${fmtDate(message.createdAt)}</div>
+        </article>
+    `).join("");
 }
 
 function renderSettings() {
@@ -649,6 +717,8 @@ app.addEventListener("submit", async (event) => {
     if (formType === "profile") await updateProfile(form);
     if (formType === "contact-invite") await sendContactInvitation(form);
     if (formType === "chat-invite") await sendChatInvitation(form);
+    if (formType === "chat-create") await createChat(form);
+    if (formType === "message") await sendMessage(form);
 });
 
 app.addEventListener("click", async (event) => {
@@ -671,6 +741,7 @@ app.addEventListener("click", async (event) => {
 
     if (target.dataset.chatId) {
         state.selectedChatId = Number(target.dataset.chatId);
+        await loadMessages(state.selectedChatId);
         render();
     }
 
