@@ -41,7 +41,7 @@ fun Application.WebEndpointRouting() {
     val contactInvitationService = ContactInvitationService()
     val chatInvitationService = ChatInvitationService()
     val chatMemberService = ChatMemberService(environment)
-    val chatService = ChatService()
+    val chatService = ChatService(environment)
     val messageService = MessageService()
     val designSettingsService = DesignSettingsService(environment)
 
@@ -157,15 +157,6 @@ fun Application.WebEndpointRouting() {
                         val chatId = chatService.create(
                             Chat(name = name, owner = currentUserId, createdAt = now)
                         ) ?: error("Chat was not created")
-
-                        chatMemberService.create(
-                            ChatMember(
-                                idChat = chatId,
-                                idRole = body.idRole,
-                                idUser = currentUserId,
-                                createdAt = now
-                            )
-                        )
 
                         chatService.findById(chatId)?.toEndpointDTO(
                             ownerUser = userById(currentUserId),
@@ -406,7 +397,6 @@ fun Application.WebEndpointRouting() {
                                 idChat = body.idChat,
                                 inviterUserId = currentUserId,
                                 inviteeUserId = body.inviteeUserId,
-                                idRole = body.idRole,
                                 message = body.message,
                                 createdAt = Instant.now().toString()
                             )

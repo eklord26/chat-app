@@ -42,7 +42,10 @@ function setMessage(text, type = "error") {
 
 async function loadDesignSettings() {
     try {
-        state.designColors = await api("/web/design-settings");
+        state.designColors = await api("/web/design-settings", {
+            authRequired: false,
+            sendAuth: false
+        });
         applyDesignColors(state.designColors);
     } catch (error) {
         console.warn("Design settings were not loaded", error);
@@ -69,31 +72,40 @@ function applyDesignColors(colors) {
 }
 
 async function api(path, options = {}) {
+    const authRequired = options.authRequired !== false;
+    const sendAuth = options.sendAuth !== false;
+    const requestOptions = { ...options };
+    delete requestOptions.authRequired;
+    delete requestOptions.sendAuth;
+
     const headers = {
         "Content-Type": "application/json",
-        ...(options.headers || {})
+        ...(requestOptions.headers || {})
     };
 
-    if (state.token) {
+    if (sendAuth && state.token) {
         headers.Authorization = `Bearer ${state.token}`;
     }
 
     const response = await fetch(path, {
-        ...options,
+        ...requestOptions,
         headers
     });
 
-    if (response.status === 401) {
-        logout(false);
-        throw new Error("Сессия истекла. Войдите снова.");
-    }
-
     const text = await response.text();
     const data = text ? safeJson(text) : null;
+    const message = typeof data === "string" ? data : data?.message || text || "Ошибка запроса";
 
     if (!response.ok) {
-        const message = typeof data === "string" ? data : data?.message || text || "Ошибка запроса";
-        throw new Error(message);
+        const error = new Error(message);
+        error.status = response.status;
+
+        if (response.status === 401 && authRequired) {
+            logout(false);
+            error.message = "Сессия истекла. Войдите снова.";
+        }
+
+        throw error;
     }
 
     return data;
@@ -213,6 +225,8 @@ async function login(form) {
     try {
         const result = await api("/authentication", {
             method: "POST",
+            authRequired: false,
+            sendAuth: false,
             body: JSON.stringify(body)
         });
 
@@ -225,7 +239,7 @@ async function login(form) {
         await bootstrap();
     } catch (error) {
         state.loading = false;
-        setMessage(error.message);
+        setMessage(error.status === 401 ? "Неверный логин или пароль." : error.message);
     }
 }
 
@@ -237,6 +251,8 @@ async function register(form) {
     try {
         const result = await api("/register", {
             method: "POST",
+            authRequired: false,
+            sendAuth: false,
             body: JSON.stringify(body)
         });
 
@@ -301,7 +317,6 @@ async function sendChatInvitation(form) {
             body: JSON.stringify({
                 idChat: Number(body.idChat),
                 inviteeUserId: Number(body.inviteeUserId),
-                idRole: Number(body.idRole),
                 message: body.message || null
             })
         });
@@ -318,8 +333,7 @@ async function createChat(form) {
         const chat = await api("/web/chats", {
             method: "POST",
             body: JSON.stringify({
-                name: body.name,
-                idRole: Number(body.idRole || 1)
+                name: body.name
             })
         });
         state.selectedChatId = chat.id;
@@ -598,7 +612,6 @@ function renderChats() {
                 <h2 class="section-title">Создать чат</h2>
                 <form class="form" data-form="chat-create" style="margin-top:14px">
                     <label class="field"><span>Название</span><input class="input" name="name" maxlength="120" required></label>
-                    <label class="field"><span>ID роли владельца</span><input class="input" name="idRole" type="number" min="1" value="1" required></label>
                     <button class="btn" type="submit">Создать</button>
                 </form>
             </section>
@@ -611,7 +624,6 @@ function renderChats() {
                         </select>
                     </label>
                     <label class="field"><span>ID пользователя</span><input class="input" name="inviteeUserId" type="number" min="1" required></label>
-                    <label class="field"><span>ID роли</span><input class="input" name="idRole" type="number" min="1" value="1" required></label>
                     <label class="field"><span>Сообщение</span><textarea class="textarea" name="message"></textarea></label>
                     <button class="btn" type="submit" ${state.chats.length ? "" : "disabled"}>Отправить приглашение</button>
                 </form>

@@ -79,7 +79,6 @@ fun Application.ChatInvitationRouting() {
                             idChat = body.idChat,
                             inviterUserId = currentUserId,
                             inviteeUserId = body.inviteeUserId,
-                            idRole = body.idRole,
                             message = body.message,
                             createdAt = Instant.now().toString()
                         )

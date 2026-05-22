@@ -6,11 +6,13 @@ import Invitations.DTO.ChatInvitation
 import Invitations.DTO.ChatInvitationFilter
 import Invitations.Enums.InvitationStatusEnum
 import Invitations.Repositories.ChatInvitationRepository
+import Roles.Services.RoleService
 import java.time.Instant
 
 class ChatInvitationService {
     private val repository = ChatInvitationRepository()
     private val chatMemberService = ChatMemberService()
+    private val roleService = RoleService()
 
     suspend fun findById(id: Int): ChatInvitation? = repository.findById(id)
 
@@ -19,7 +21,12 @@ class ChatInvitationService {
     suspend fun create(invitation: ChatInvitation): Int? {
         require(invitation.inviterUserId != invitation.inviteeUserId) { "Cannot invite yourself to chat" }
 
-        repository.create(invitation.copy(status = InvitationStatusEnum.PENDING.value))
+        repository.create(
+            invitation.copy(
+                idRole = roleService.participantRoleId(),
+                status = InvitationStatusEnum.PENDING.value
+            )
+        )
         return repository.findByFilter(
             ChatInvitationFilter(
                 idChat = invitation.idChat,
@@ -48,7 +55,7 @@ class ChatInvitationService {
         chatMemberService.create(
             ChatMember(
                 idChat = invitation.idChat,
-                idRole = invitation.idRole,
+                idRole = roleService.participantRoleId(),
                 idUser = invitation.inviteeUserId,
                 createdAt = now
             )

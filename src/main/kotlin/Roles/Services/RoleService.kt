@@ -1,5 +1,6 @@
 package Roles.Services
 
+import Roles.Constants.ChatRoleNames
 import Roles.DTO.Role
 import Roles.DTO.RoleFilter
 import Roles.Repositories.RoleRepository
@@ -38,4 +39,20 @@ class RoleService {
     suspend fun findById(id: Int): Role? = roleRepository.findById(id)
 
     suspend fun findByFilter(filter: RoleFilter): List<Role?> = roleRepository.findByFilter(filter)
+
+    suspend fun findActiveByName(name: String): Role? = roleRepository.findByFilter(
+        RoleFilter(name = name, isDeleted = false)
+    ).filterNotNull().firstOrNull { it.name == name }
+
+    suspend fun requireActiveByName(name: String): Role {
+        findActiveByName(name)?.let { return it }
+        roleRepository.create(Role(name = name))
+        return findActiveByName(name) ?: error("Required role was not found: $name")
+    }
+
+    suspend fun participantRoleId(): Int = requireActiveByName(ChatRoleNames.PARTICIPANT).id
+        ?: error("Participant role has no ID")
+
+    suspend fun administratorRoleId(): Int = requireActiveByName(ChatRoleNames.ADMINISTRATOR).id
+        ?: error("Administrator role has no ID")
 }

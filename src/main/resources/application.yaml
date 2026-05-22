@@ -18,7 +18,7 @@ encryption:
   masterKeyBase64: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
 design:
   colors:
-    primary: "#55759f"
+    primary: "#008000"
     secondary: "#e7eef6"
     warning: "#a86f1d"
     error: "#c64646"

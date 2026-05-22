@@ -6,6 +6,5 @@ import kotlinx.serialization.Serializable
 data class CreateChatInvitationEndpointDTO(
     val idChat: Int,
     val inviteeUserId: Int,
-    val idRole: Int,
     val message: String? = null
 )
