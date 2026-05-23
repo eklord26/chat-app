@@ -16,3 +16,10 @@ encryption:
   # Override in production with CHAT_APP_MASTER_KEY_BASE64 or this config value.
   # Must be a Base64 encoded 32-byte AES key.
   masterKeyBase64: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+design:
+  colors:
+    primary: "#008000"
+    secondary: "#e7eef6"
+    warning: "#a86f1d"
+    error: "#c64646"
+    success: "#17795f"

@@ -16,7 +16,7 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 
 fun Application.ChatRouting() {
-    val service = ChatService()
+    val service = ChatService(environment)
     val authGuard = AuthGuard()
 
     routing {

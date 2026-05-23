@@ -6,7 +6,7 @@ import io.ktor.server.routing.*
 fun Application.configureRouting() {
     routing {
         get("/") {
-            call.respondText("Hello World!")
+            call.respondRedirect("/static/index.html")
         }
         get("/test") {
         }
