@@ -17,6 +17,8 @@ const state = {
     messages: {},
     message: "",
     messageType: "error",
+    socket: null,
+    socketReconnectTimer: null,
     loading: false,
     designColors: null,
     settings: {
@@ -151,6 +153,7 @@ async function bootstrap() {
         state.userId = state.me.id;
         localStorage.setItem("userId", String(state.me.id));
         await loadDashboardData();
+        connectWebSocket();
     } catch (error) {
         state.message = error.message;
         state.token = null;
@@ -160,6 +163,64 @@ async function bootstrap() {
         state.loading = false;
         render();
     }
+}
+
+function connectWebSocket() {
+    if (!state.token) return;
+    if (state.socket && state.socket.readyState === WebSocket.OPEN) return;
+    if (state.socketReconnectTimer) {
+        clearTimeout(state.socketReconnectTimer);
+        state.socketReconnectTimer = null;
+    }
+
+    const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+    const url = `${protocol}://${window.location.host}/ws?token=${encodeURIComponent(state.token)}`;
+    const socket = new WebSocket(url);
+    state.socket = socket;
+
+    socket.onmessage = (event) => {
+        const payload = safeJson(event.data);
+        if (!payload || typeof payload !== "object") return;
+
+        if (payload.event === "message:new" && payload.data) {
+            applySocketMessage(payload.data);
+        }
+    };
+
+    socket.onclose = () => {
+        if (state.socket === socket) state.socket = null;
+        if (state.token) {
+            state.socketReconnectTimer = setTimeout(connectWebSocket, 2000);
+        }
+    };
+
+    socket.onerror = () => {
+        socket.close();
+    };
+}
+
+function reconnectWebSocket() {
+    if (!state.token) return;
+    if (state.socket) {
+        state.socket.close();
+        return;
+    }
+    connectWebSocket();
+}
+
+function applySocketMessage(message) {
+    const chatId = Number(message.idChat);
+    if (!chatId) return;
+
+    const messages = state.messages[chatId] || [];
+    if (messages.some(existing => existing.id === message.id)) return;
+
+    state.messages[chatId] = [...messages, {
+        ...message,
+        isMine: Number(message.senderUserId) === Number(state.userId)
+    }].sort((left, right) => new Date(left.createdAt) - new Date(right.createdAt));
+
+    if (state.route === "chats") render();
 }
 
 async function loadDashboardData() {
@@ -270,6 +331,14 @@ async function register(form) {
 }
 
 function logout(renderAfter = true) {
+    if (state.socket) {
+        state.socket.close();
+        state.socket = null;
+    }
+    if (state.socketReconnectTimer) {
+        clearTimeout(state.socketReconnectTimer);
+        state.socketReconnectTimer = null;
+    }
     state.token = null;
     state.userId = null;
     state.me = null;
@@ -338,6 +407,7 @@ async function createChat(form) {
         });
         state.selectedChatId = chat.id;
         await loadChats();
+        reconnectWebSocket();
         setMessage("Чат создан", "success");
     } catch (error) {
         setMessage(error.message);
@@ -369,6 +439,7 @@ async function invitationAction(kind, id, action) {
     try {
         await api(`${base}/${id}/${action}`, { method: "POST" });
         await loadDashboardData();
+        reconnectWebSocket();
         setMessage("Статус приглашения обновлен", "success");
     } catch (error) {
         setMessage(error.message);
