@@ -54,6 +54,24 @@ fun Application.WebEndpointRouting() {
 
     suspend fun activeMembers(chatId: Int) = chatAccessService.activeMembers(chatId)
 
+    suspend fun contactInvitationById(id: Int) = contactInvitationService.findById(id)?.let { invitation ->
+        invitation.toEndpointDTO(
+            sender = userById(invitation.senderUserId),
+            receiver = userById(invitation.receiverUserId)
+        )
+    }
+
+    suspend fun chatInvitationById(id: Int) = chatInvitationService.findById(id)?.let { invitation ->
+        val sourceChat = chatService.findById(invitation.idChat)
+        val chat = sourceChat?.toEndpointDTO(userById(sourceChat.owner))
+
+        invitation.toEndpointDTO(
+            chat = chat,
+            inviter = userById(invitation.inviterUserId),
+            invitee = userById(invitation.inviteeUserId)
+        )
+    }
+
     suspend fun requireActiveMember(chatId: Int, userId: Int): ChatMember? =
         chatAccessService.requireActiveMember(chatId, userId)
 
@@ -283,7 +301,17 @@ fun Application.WebEndpointRouting() {
                             )
                         )
                     }
-                        .onSuccess { newId -> call.respond(HttpStatusCode.Created, mapOf("id" to newId)) }
+                        .onSuccess { newId ->
+                            val invitation = newId?.let { contactInvitationById(it) }
+                            if (invitation != null) {
+                                SocketBroadcaster.contactInvitationCreated(
+                                    senderUserId = currentUserId,
+                                    receiverUserId = body.receiverUserId,
+                                    invitation = invitation
+                                )
+                            }
+                            call.respond(HttpStatusCode.Created, mapOf("id" to newId))
+                        }
                         .onFailure {
                             call.respond(
                                 HttpStatusCode.BadRequest,
@@ -295,22 +323,52 @@ fun Application.WebEndpointRouting() {
                 post("/{id}/accept") {
                     val currentUserId = authGuard.requireUserId(call) ?: return@post
                     val id = call.parameters["id"]?.toIntOrNull()
-                    if (id != null && contactInvitationService.accept(id, currentUserId)) call.respond(HttpStatusCode.OK)
-                    else call.respond(HttpStatusCode.NotFound)
+                    if (id != null && contactInvitationService.accept(id, currentUserId)) {
+                        val invitation = contactInvitationById(id)
+                        if (invitation != null) {
+                            SocketBroadcaster.contactInvitationUpdated(
+                                actorUserId = currentUserId,
+                                senderUserId = invitation.senderUserId,
+                                receiverUserId = invitation.receiverUserId,
+                                invitation = invitation
+                            )
+                        }
+                        call.respond(HttpStatusCode.OK)
+                    } else call.respond(HttpStatusCode.NotFound)
                 }
 
                 post("/{id}/reject") {
                     val currentUserId = authGuard.requireUserId(call) ?: return@post
                     val id = call.parameters["id"]?.toIntOrNull()
-                    if (id != null && contactInvitationService.reject(id, currentUserId)) call.respond(HttpStatusCode.OK)
-                    else call.respond(HttpStatusCode.NotFound)
+                    if (id != null && contactInvitationService.reject(id, currentUserId)) {
+                        val invitation = contactInvitationById(id)
+                        if (invitation != null) {
+                            SocketBroadcaster.contactInvitationUpdated(
+                                actorUserId = currentUserId,
+                                senderUserId = invitation.senderUserId,
+                                receiverUserId = invitation.receiverUserId,
+                                invitation = invitation
+                            )
+                        }
+                        call.respond(HttpStatusCode.OK)
+                    } else call.respond(HttpStatusCode.NotFound)
                 }
 
                 post("/{id}/cancel") {
                     val currentUserId = authGuard.requireUserId(call) ?: return@post
                     val id = call.parameters["id"]?.toIntOrNull()
-                    if (id != null && contactInvitationService.cancel(id, currentUserId)) call.respond(HttpStatusCode.OK)
-                    else call.respond(HttpStatusCode.NotFound)
+                    if (id != null && contactInvitationService.cancel(id, currentUserId)) {
+                        val invitation = contactInvitationById(id)
+                        if (invitation != null) {
+                            SocketBroadcaster.contactInvitationUpdated(
+                                actorUserId = currentUserId,
+                                senderUserId = invitation.senderUserId,
+                                receiverUserId = invitation.receiverUserId,
+                                invitation = invitation
+                            )
+                        }
+                        call.respond(HttpStatusCode.OK)
+                    } else call.respond(HttpStatusCode.NotFound)
                 }
             }
 
@@ -377,7 +435,17 @@ fun Application.WebEndpointRouting() {
                             )
                         )
                     }
-                        .onSuccess { newId -> call.respond(HttpStatusCode.Created, mapOf("id" to newId)) }
+                        .onSuccess { newId ->
+                            val invitation = newId?.let { chatInvitationById(it) }
+                            if (invitation != null) {
+                                SocketBroadcaster.chatInvitationCreated(
+                                    senderUserId = currentUserId,
+                                    receiverUserId = body.inviteeUserId,
+                                    invitation = invitation
+                                )
+                            }
+                            call.respond(HttpStatusCode.Created, mapOf("id" to newId))
+                        }
                         .onFailure {
                             call.respond(
                                 HttpStatusCode.BadRequest,
@@ -389,22 +457,52 @@ fun Application.WebEndpointRouting() {
                 post("/{id}/accept") {
                     val currentUserId = authGuard.requireUserId(call) ?: return@post
                     val id = call.parameters["id"]?.toIntOrNull()
-                    if (id != null && chatInvitationService.accept(id, currentUserId)) call.respond(HttpStatusCode.OK)
-                    else call.respond(HttpStatusCode.NotFound)
+                    if (id != null && chatInvitationService.accept(id, currentUserId)) {
+                        val invitation = chatInvitationById(id)
+                        if (invitation != null) {
+                            SocketBroadcaster.chatInvitationUpdated(
+                                actorUserId = currentUserId,
+                                senderUserId = invitation.inviterUserId,
+                                receiverUserId = invitation.inviteeUserId,
+                                invitation = invitation
+                            )
+                        }
+                        call.respond(HttpStatusCode.OK)
+                    } else call.respond(HttpStatusCode.NotFound)
                 }
 
                 post("/{id}/reject") {
                     val currentUserId = authGuard.requireUserId(call) ?: return@post
                     val id = call.parameters["id"]?.toIntOrNull()
-                    if (id != null && chatInvitationService.reject(id, currentUserId)) call.respond(HttpStatusCode.OK)
-                    else call.respond(HttpStatusCode.NotFound)
+                    if (id != null && chatInvitationService.reject(id, currentUserId)) {
+                        val invitation = chatInvitationById(id)
+                        if (invitation != null) {
+                            SocketBroadcaster.chatInvitationUpdated(
+                                actorUserId = currentUserId,
+                                senderUserId = invitation.inviterUserId,
+                                receiverUserId = invitation.inviteeUserId,
+                                invitation = invitation
+                            )
+                        }
+                        call.respond(HttpStatusCode.OK)
+                    } else call.respond(HttpStatusCode.NotFound)
                 }
 
                 post("/{id}/cancel") {
                     val currentUserId = authGuard.requireUserId(call) ?: return@post
                     val id = call.parameters["id"]?.toIntOrNull()
-                    if (id != null && chatInvitationService.cancel(id, currentUserId)) call.respond(HttpStatusCode.OK)
-                    else call.respond(HttpStatusCode.NotFound)
+                    if (id != null && chatInvitationService.cancel(id, currentUserId)) {
+                        val invitation = chatInvitationById(id)
+                        if (invitation != null) {
+                            SocketBroadcaster.chatInvitationUpdated(
+                                actorUserId = currentUserId,
+                                senderUserId = invitation.inviterUserId,
+                                receiverUserId = invitation.inviteeUserId,
+                                invitation = invitation
+                            )
+                        }
+                        call.respond(HttpStatusCode.OK)
+                    } else call.respond(HttpStatusCode.NotFound)
                 }
             }
         }

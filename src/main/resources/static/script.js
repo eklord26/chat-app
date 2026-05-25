@@ -13,6 +13,7 @@ const state = {
     contactInvitationsOut: [],
     chatInvitationsIn: [],
     chatInvitationsOut: [],
+    notifications: [],
     selectedChatId: null,
     messages: {},
     message: "",
@@ -178,12 +179,20 @@ function connectWebSocket() {
     const socket = new WebSocket(url);
     state.socket = socket;
 
-    socket.onmessage = (event) => {
+    socket.onmessage = async (event) => {
         const payload = safeJson(event.data);
         if (!payload || typeof payload !== "object") return;
 
         if (payload.event === "message:new" && payload.data) {
             applySocketMessage(payload.data);
+        }
+
+        if ((payload.event === "invitation:created" || payload.event === "invitation:updated") && payload.data) {
+            await applySocketInvitation(payload.data, payload.event);
+        }
+
+        if (payload.event === "notification:new" && payload.data) {
+            addNotification(payload.data);
         }
     };
 
@@ -221,6 +230,64 @@ function applySocketMessage(message) {
     }].sort((left, right) => new Date(left.createdAt) - new Date(right.createdAt));
 
     if (state.route === "chats") render();
+}
+
+async function applySocketInvitation(data, eventName) {
+    const kind = data.kind;
+    const direction = data.direction;
+    const invitation = data.invitation;
+    if (!kind || !direction || !invitation) return;
+
+    const incomingKey = kind === "contact" ? "contactInvitationsIn" : "chatInvitationsIn";
+    const outgoingKey = kind === "contact" ? "contactInvitationsOut" : "chatInvitationsOut";
+    const targetKey = direction === "outgoing" ? outgoingKey : incomingKey;
+    const oppositeKey = direction === "outgoing" ? incomingKey : outgoingKey;
+
+    upsertInvitation(targetKey, invitation);
+    removeInvitation(oppositeKey, invitation.id);
+
+    if (eventName === "invitation:updated" && invitation.status !== "pending") {
+        removeInvitation(incomingKey, invitation.id);
+        removeInvitation(outgoingKey, invitation.id);
+        await loadDashboardData();
+        if (kind === "chat" && invitation.status === "accepted") reconnectWebSocket();
+    }
+
+    render();
+}
+
+function upsertInvitation(key, invitation) {
+    const list = state[key] || [];
+    const index = list.findIndex(item => item.id === invitation.id);
+    if (invitation.status && invitation.status !== "pending") {
+        state[key] = list.filter(item => item.id !== invitation.id);
+        return;
+    }
+    state[key] = index >= 0
+        ? list.map(item => item.id === invitation.id ? invitation : item)
+        : [invitation, ...list];
+}
+
+function removeInvitation(key, id) {
+    state[key] = (state[key] || []).filter(item => item.id !== id);
+}
+
+function addNotification(notification) {
+    const item = {
+        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        title: notification.title || "Уведомление",
+        message: notification.message || "",
+        type: notification.type || "info",
+        kind: notification.kind || null,
+        createdAt: new Date().toISOString()
+    };
+
+    state.notifications = [item, ...state.notifications].slice(0, 10);
+    if (state.settings.notifications) {
+        state.message = item.message || item.title;
+        state.messageType = "success";
+    }
+    render();
 }
 
 async function loadDashboardData() {
@@ -579,15 +646,34 @@ function renderHome() {
                 ${renderInvitationList("chat", state.chatInvitationsIn, true)}
             </section>
             <section class="card">
-                <div class="section-head"><h2 class="section-title">Быстрые переходы</h2></div>
-                <div class="grid quick-actions">
-                    ${routes.filter(r => r.id !== "home").map(route => `
-                        <button class="btn secondary" data-route="${route.id}">${route.icon} ${route.label}</button>
-                    `).join("")}
-                </div>
+                <div class="section-head"><h2 class="section-title">Уведомления</h2></div>
+                ${renderNotifications()}
             </section>
         </div>
+        <section class="card" style="margin-top:16px">
+            <div class="section-head"><h2 class="section-title">Быстрые переходы</h2></div>
+            <div class="grid quick-actions">
+                ${routes.filter(r => r.id !== "home").map(route => `
+                    <button class="btn secondary" data-route="${route.id}">${route.icon} ${route.label}</button>
+                `).join("")}
+            </div>
+        </section>
     `;
+}
+
+function renderNotifications() {
+    if (!state.notifications.length) return `<div class="empty">Уведомлений пока нет.</div>`;
+    return `<div class="list">${state.notifications.map(notification => `
+        <article class="item">
+            <div class="item-line">
+                <div>
+                    <div class="item-title">${escapeHtml(notification.title)}</div>
+                    <div class="muted">${escapeHtml(notification.message)}</div>
+                </div>
+                <span class="pill">${fmtDate(notification.createdAt)}</span>
+            </div>
+        </article>
+    `).join("")}</div>`;
 }
 
 function statCard(label, value, note) {

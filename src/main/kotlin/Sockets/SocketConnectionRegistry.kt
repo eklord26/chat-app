@@ -28,6 +28,12 @@ object SocketConnectionRegistry {
         }
     }
 
+    fun joinUserToChat(userId: Int, chatId: Int) {
+        userConnections[userId].orEmpty().forEach { connectionId ->
+            chatConnections.computeIfAbsent(chatId) { ConcurrentHashMap.newKeySet() }.add(connectionId)
+        }
+    }
+
     fun unregister(connectionId: String) {
         val connection = connections.remove(connectionId) ?: return
         userConnections[connection.userId]?.remove(connectionId)

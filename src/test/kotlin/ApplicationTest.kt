@@ -4,6 +4,7 @@ import Authentication.Controllers.AuthenticationRouter
 import ChatMembers.DAO.ChatMembersTable
 import Chats.Controllers.ChatRouting
 import Chats.DAO.ChatTable
+import Encryption.DAO.ChatEncryptionKeyTable
 import Log.Controllers.LogRouter
 import Logger.DAO.LogTable
 import Registration.Controllers.RegistrationRouter
@@ -124,7 +125,7 @@ class ApplicationTest {
         )
 
         transaction {
-            SchemaUtils.create(UserTable, TokenTable, RoleTable, ChatTable, ChatMembersTable, LogTable)
+            SchemaUtils.create(UserTable, TokenTable, RoleTable, ChatTable, ChatMembersTable, ChatEncryptionKeyTable, LogTable)
         }
     }
 
