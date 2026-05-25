@@ -1,58 +1,87 @@
 package com.example
 
-import Encryption.DTO.EncryptedSocketMessage
-import io.ktor.http.*
+import Chats.Services.ChatAccessService
+import Sockets.DTO.SocketEventDTO
+import Sockets.SocketBroadcaster
+import Sockets.SocketConnectionRegistry
+import Tokens.Services.TokenService
 import io.ktor.serialization.kotlinx.KotlinxWebsocketSerializationConverter
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
-import io.ktor.server.http.content.*
-import io.ktor.server.plugins.calllogging.*
-import io.ktor.server.plugins.contentnegotiation.*
-import io.ktor.server.request.*
-import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import io.ktor.websocket.*
 import kotlinx.serialization.json.Json
-import java.sql.Connection
-import java.sql.DriverManager
-import java.time.Duration
 import kotlin.time.Duration.Companion.seconds
-import org.slf4j.event.*
 
 fun Application.configureSockets() {
+    val tokenService = TokenService()
+    val chatAccessService = ChatAccessService(environment)
+    val json = Json {
+        encodeDefaults = true
+        ignoreUnknownKeys = true
+    }
+
     install(WebSockets) {
-        contentConverter = KotlinxWebsocketSerializationConverter(Json)
+        contentConverter = KotlinxWebsocketSerializationConverter(json)
         pingPeriod = 15.seconds
         timeout = 15.seconds
         maxFrameSize = Long.MAX_VALUE
         masking = false
     }
     routing {
-        webSocket("/ws") { // websocketSession
-            for (frame in incoming) {
-                if (frame is Frame.Text) {
+        webSocket("/ws") {
+            val token = call.request.queryParameters["token"]
+                ?: call.request.headers["Authorization"]?.substringAfter("Bearer ", missingDelimiterValue = "")
+                    ?.takeIf { it.isNotBlank() }
+                ?: call.request.headers["Auth-Token"]?.takeIf { it.isNotBlank() }
+
+            val userId = token?.let { tokenService.getUserIdByToken(it) }
+            if (userId == null) {
+                close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Unauthorized"))
+                return@webSocket
+            }
+
+            val connection = SocketConnectionRegistry.register(userId, this)
+            val chatIds = chatAccessService.userActiveChatIds(userId)
+            SocketConnectionRegistry.joinChats(connection.id, chatIds)
+            SocketBroadcaster.connectionReady(connection.id, chatIds)
+
+            try {
+                for (frame in incoming) {
+                    if (frame !is Frame.Text) continue
+
                     val text = frame.readText()
-                    val encryptedMessage = runCatching {
-                        Json.decodeFromString<EncryptedSocketMessage>(text)
+                    if (text.equals("bye", ignoreCase = true)) {
+                        close(CloseReason(CloseReason.Codes.NORMAL, "Client said BYE"))
+                        break
+                    }
+
+                    val event = runCatching {
+                        json.decodeFromString<SocketEventDTO>(text)
                     }.getOrNull()
 
-                    if (encryptedMessage != null && encryptedMessage.isEncrypted) {
-                        outgoing.send(
-                            Frame.Text(
-                                Json.encodeToString(
-                                    EncryptedSocketMessage.serializer(),
-                                    encryptedMessage
+                    when (event?.event ?: text) {
+                        "ping" -> SocketConnectionRegistry.sendToConnection(
+                            connection.id,
+                            json.encodeToString(
+                                SocketEventDTO(
+                                    event = "pong",
+                                    requestId = event?.requestId
                                 )
                             )
                         )
-                    } else {
-                        outgoing.send(Frame.Text("YOU SAID: $text"))
-                    }
-                    if (text.equals("bye", ignoreCase = true)) {
-                        close(CloseReason(CloseReason.Codes.NORMAL, "Client said BYE"))
+
+                        else -> SocketBroadcaster.error(
+                            connection.id,
+                            "UNSUPPORTED_SOCKET_EVENT",
+                            "This WebSocket endpoint accepts service events only. Send messages through REST API.",
+                            event?.requestId
+                        )
                     }
                 }
+            } finally {
+                SocketConnectionRegistry.unregister(connection.id)
             }
         }
     }
