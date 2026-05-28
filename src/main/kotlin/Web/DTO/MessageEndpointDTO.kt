@@ -12,6 +12,7 @@ data class MessageEndpointDTO(
     val value: String,
     val type: String,
     val isMine: Boolean,
+    val isUnread: Boolean = false,
     val attachments: List<MediaFileEndpointDTO> = emptyList(),
     val createdAt: String,
     val viewedAt: String? = null,

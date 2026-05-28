@@ -15,6 +15,10 @@ import Invitations.DTO.ContactInvitationFilter
 import Invitations.Enums.InvitationStatusEnum
 import Invitations.Services.ChatInvitationService
 import Invitations.Services.ContactInvitationService
+import Logger.Enums.EventType
+import Logger.Enums.LogType
+import Logger.Repositories.LogRepository
+import Logger.Services.AuditLogWriter
 import Media.Repositories.MessageAttachmentRepository
 import Media.Services.MediaService
 import Media.Services.MediaValidationException
@@ -22,7 +26,12 @@ import Messages.DTO.MessageFilter
 import Messages.Services.MessageDeliveryException
 import Messages.Services.MessageDeliveryService
 import Messages.Services.MessageService
+import Passwords.Services.PasswordService
+import Roles.Constants.ChatRoleNames
+import Roles.Services.RoleService
 import Sockets.SocketBroadcaster
+import Web.DTO.ChangePasswordEndpointDTO
+import Web.DTO.ChatRoleEndpointDTO
 import Web.DTO.CreateChatEndpointDTO
 import Tokens.Services.AuthGuard
 import Users.DTO.UserFilter
@@ -36,12 +45,15 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.PartData
 import io.ktor.http.content.forEachPart
 import io.ktor.server.application.Application
+import io.ktor.server.application.ApplicationCall
 import io.ktor.server.request.*
 import io.ktor.server.response.respond
 import io.ktor.server.response.respondFile
 import io.ktor.server.routing.*
 import java.io.File
 import java.time.Instant
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 
 fun Application.WebEndpointRouting() {
     val authGuard = AuthGuard()
@@ -57,11 +69,59 @@ fun Application.WebEndpointRouting() {
     val mediaService = MediaService(environment)
     val attachmentRepository = MessageAttachmentRepository()
     val designSettingsService = DesignSettingsService(environment)
+    val passwordService = PasswordService()
+    val roleService = RoleService()
+    val logRepository = LogRepository()
 
     suspend fun userById(id: Int) = userService.findById(id)?.toEndpointDTO()
+    suspend fun requireAdminUserId(call: ApplicationCall): Int? {
+        val currentUserId = authGuard.requireUserId(call) ?: return null
+        val user = userService.findById(currentUserId)
+        if (user?.isAdmin != true) {
+            call.respond(HttpStatusCode.Forbidden, "Admin access required")
+            return null
+        }
+        return currentUserId
+    }
+
+    suspend fun audit(call: ApplicationCall, userId: Int?, type: LogType, event: EventType, description: String) {
+        AuditLogWriter.write(
+            userId = userId,
+            type = type,
+            event = event,
+            ipAddress = call.request.origin.remoteAddress,
+            description = description
+        )
+    }
+
+    fun logDateValue(value: String): LocalDateTime? =
+        runCatching { LocalDateTime.parse(value) }.getOrNull()
+
+    fun requestDateValue(value: String?): LocalDateTime? =
+        value?.takeIf { it.isNotBlank() }?.let {
+            runCatching { LocalDateTime.parse(it, DateTimeFormatter.ISO_LOCAL_DATE_TIME) }.getOrNull()
+        }
     suspend fun activeMember(chatId: Int, userId: Int) = chatAccessService.activeMember(chatId, userId)
 
     suspend fun activeMembers(chatId: Int) = chatAccessService.activeMembers(chatId)
+
+    suspend fun messagesByMembers(members: List<ChatMember>) = members.flatMap { member ->
+        messageService.findByFilter(
+            MessageFilter(idChatMember = member.id, isDeleted = false)
+        ).filterNotNull()
+    }.sortedBy { it.createdAt }
+
+    suspend fun unreadCountFor(currentUserId: Int, members: List<ChatMember>): Int {
+        val membersById = members.mapNotNull { member -> member.id?.let { it to member } }.toMap()
+        return messagesByMembers(members).count { message ->
+            val sender = membersById[message.idChatMember] ?: return@count false
+            sender.idUser != currentUserId && message.viewedAt == null
+        }
+    }
+
+    suspend fun participantUsers(members: List<ChatMember>) = members.mapNotNull { member ->
+        userById(member.idUser)
+    }
 
     suspend fun contactInvitationById(id: Int) = contactInvitationService.findById(id)?.let { invitation ->
         invitation.toEndpointDTO(
@@ -88,6 +148,43 @@ fun Application.WebEndpointRouting() {
         route("/web") {
             get("/design-settings") {
                 call.respond(HttpStatusCode.OK, designSettingsService.getColors())
+            }
+
+            get("/admin/audit-logs") {
+                requireAdminUserId(call) ?: return@get
+                val type = call.request.queryParameters["type"]?.takeIf { it.isNotBlank() }
+                val event = call.request.queryParameters["event"]?.takeIf { it.isNotBlank() }
+                val userId = call.request.queryParameters["userId"]?.toIntOrNull()
+                val ipAddress = call.request.queryParameters["ip"]?.takeIf { it.isNotBlank() }
+                val dateFrom = requestDateValue(call.request.queryParameters["dateFrom"])
+                val dateTo = requestDateValue(call.request.queryParameters["dateTo"])
+
+                val logs = logRepository.findAll()
+                    .filterNotNull()
+                    .filter { type == null || it.logType == type }
+                    .filter { event == null || it.event == event }
+                    .filter { userId == null || it.idUser == userId }
+                    .filter { ipAddress == null || it.ipAddress.contains(ipAddress, ignoreCase = true) }
+                    .filter { log ->
+                        val logDate = logDateValue(log.date) ?: return@filter true
+                        (dateFrom == null || !logDate.isBefore(dateFrom)) &&
+                            (dateTo == null || !logDate.isAfter(dateTo))
+                    }
+                    .sortedByDescending { it.date }
+                    .mapNotNull { it.toEndpointDTO() }
+
+                call.respond(HttpStatusCode.OK, logs)
+            }
+
+            get("/admin/audit-options") {
+                requireAdminUserId(call) ?: return@get
+                call.respond(
+                    HttpStatusCode.OK,
+                    mapOf(
+                        "types" to LogType.entries.map { it.name },
+                        "events" to EventType.entries.map { it.name }
+                    )
+                )
             }
 
             get("/me") {
@@ -120,6 +217,37 @@ fun Application.WebEndpointRouting() {
                 else call.respond(HttpStatusCode.NotFound)
             }
 
+            put("/me/password") {
+                val currentUserId = authGuard.requireUserId(call) ?: return@put
+                val currentUser = userService.findById(currentUserId)
+                if (currentUser == null) {
+                    call.respond(HttpStatusCode.NotFound, "User not found")
+                    return@put
+                }
+
+                val body = call.receive<ChangePasswordEndpointDTO>()
+                if (!passwordService.checkHashPassword(currentUser.passwordHash, body.currentPassword)) {
+                    call.respond(HttpStatusCode.BadRequest, "Current password is invalid")
+                    return@put
+                }
+
+                if (body.newPassword.length < 8) {
+                    call.respond(HttpStatusCode.BadRequest, "New password is too short")
+                    return@put
+                }
+
+                val updated = userService.update(
+                    currentUserId,
+                    currentUser.copy(passwordHash = passwordService.createHashPassword(body.newPassword))
+                )
+
+                if (updated) {
+                    audit(call, currentUserId, LogType.Event, EventType.USER_CHANGE_PASSWORD, "User changed password")
+                    call.respond(HttpStatusCode.OK)
+                }
+                else call.respond(HttpStatusCode.NotFound)
+            }
+
             get("/users") {
                 authGuard.requireUserId(call) ?: return@get
                 val users = userService.findByFilter(
@@ -132,6 +260,34 @@ fun Application.WebEndpointRouting() {
 
                 if (users.isNotEmpty()) call.respond(HttpStatusCode.OK, users)
                 else call.respond(HttpStatusCode.NotFound, "Users not found")
+            }
+
+            get("/users/{id}/public") {
+                authGuard.requireUserId(call) ?: return@get
+                val id = call.parameters["id"]?.toIntOrNull()
+                if (id == null) {
+                    call.respond(HttpStatusCode.BadRequest, "Invalid user ID")
+                    return@get
+                }
+
+                val user = userById(id)
+                if (user != null) call.respond(HttpStatusCode.OK, user)
+                else call.respond(HttpStatusCode.NotFound, "User not found")
+            }
+
+            get("/chat-roles") {
+                authGuard.requireUserId(call) ?: return@get
+                val roleNames = listOf(
+                    ChatRoleNames.PARTICIPANT,
+                    ChatRoleNames.MODERATOR,
+                    ChatRoleNames.ADMINISTRATOR
+                )
+                val roles = roleNames.map { name ->
+                    val role = roleService.requireActiveByName(name)
+                    ChatRoleEndpointDTO(role.id ?: 0, role.name)
+                }
+
+                call.respond(HttpStatusCode.OK, roles)
             }
 
             get("/contacts") {
@@ -147,6 +303,24 @@ fun Application.WebEndpointRouting() {
 
                 if (contacts.isNotEmpty()) call.respond(HttpStatusCode.OK, contacts)
                 else call.respond(HttpStatusCode.NotFound, "Contacts not found")
+            }
+
+            delete("/contacts/{id}") {
+                val currentUserId = authGuard.requireUserId(call) ?: return@delete
+                val id = call.parameters["id"]?.toIntOrNull()
+                if (id == null) {
+                    call.respond(HttpStatusCode.BadRequest, "Invalid contact ID")
+                    return@delete
+                }
+
+                val contact = contactService.findById(id)
+                if (contact == null || contact.ownerUserId != currentUserId) {
+                    call.respond(HttpStatusCode.NotFound, "Contact not found")
+                    return@delete
+                }
+
+                if (contactService.softDelete(id)) call.respond(HttpStatusCode.OK)
+                else call.respond(HttpStatusCode.NotFound)
             }
 
             route("/media") {
@@ -219,11 +393,51 @@ fun Application.WebEndpointRouting() {
                     val chats = memberships.mapNotNull { member ->
                         val chat = chatService.findById(member.idChat) ?: return@mapNotNull null
                         if (chat.deletedAt != null) return@mapNotNull null
-                        chat.toEndpointDTO(userById(chat.owner), member.id)
+                        val members = activeMembers(member.idChat)
+                        chat.toEndpointDTO(
+                            ownerUser = userById(chat.owner),
+                            currentUserMemberId = member.id,
+                            participants = participantUsers(members),
+                            unreadCount = unreadCountFor(currentUserId, members)
+                        )
                     }
 
                     if (chats.isNotEmpty()) call.respond(HttpStatusCode.OK, chats)
                     else call.respond(HttpStatusCode.NotFound, "Chats not found")
+                }
+
+                get("/direct/{contactUserId}") {
+                    val currentUserId = authGuard.requireUserId(call) ?: return@get
+                    val contactUserId = call.parameters["contactUserId"]?.toIntOrNull()
+                    if (contactUserId == null) {
+                        call.respond(HttpStatusCode.BadRequest, "Invalid contact user ID")
+                        return@get
+                    }
+
+                    val currentMemberships = chatMemberService.findByFilter(
+                        ChatMemberFilter(idUser = currentUserId, isDeleted = false)
+                    ).filterNotNull()
+                    val contactMemberships = chatMemberService.findByFilter(
+                        ChatMemberFilter(idUser = contactUserId, isDeleted = false)
+                    ).filterNotNull()
+                    val contactChatIds = contactMemberships.map { it.idChat }.toSet()
+
+                    val directChat = currentMemberships.firstNotNullOfOrNull { member ->
+                        if (!contactChatIds.contains(member.idChat)) return@firstNotNullOfOrNull null
+                        val members = activeMembers(member.idChat)
+                        if (members.size != 2) return@firstNotNullOfOrNull null
+                        val chat = chatService.findById(member.idChat) ?: return@firstNotNullOfOrNull null
+                        if (chat.deletedAt != null) return@firstNotNullOfOrNull null
+                        chat.toEndpointDTO(
+                            ownerUser = userById(chat.owner),
+                            currentUserMemberId = member.id,
+                            participants = participantUsers(members),
+                            unreadCount = unreadCountFor(currentUserId, members)
+                        )
+                    }
+
+                    if (directChat != null) call.respond(HttpStatusCode.OK, directChat)
+                    else call.respond(HttpStatusCode.NotFound, "Direct chat not found")
                 }
 
                 post {
@@ -244,7 +458,9 @@ fun Application.WebEndpointRouting() {
 
                         chatService.findById(chatId)?.toEndpointDTO(
                             ownerUser = userById(currentUserId),
-                            currentUserMemberId = activeMember(chatId, currentUserId)?.id
+                            currentUserMemberId = activeMember(chatId, currentUserId)?.id,
+                            participants = participantUsers(activeMembers(chatId)),
+                            unreadCount = 0
                         ) ?: error("Created chat was not found")
                     }
                         .onSuccess { chat -> call.respond(HttpStatusCode.Created, chat) }
@@ -269,11 +485,7 @@ fun Application.WebEndpointRouting() {
                     val members = activeMembers(chatId)
                         .mapNotNull { member -> member.id?.let { memberId -> memberId to member } }
                         .toMap()
-                    val rawMessages = members.values.flatMap { member ->
-                        messageService.findByFilter(
-                            MessageFilter(idChatMember = member.id, isDeleted = false)
-                        ).filterNotNull()
-                    }.sortedBy { it.createdAt }
+                    val rawMessages = messagesByMembers(members.values.toList())
                     val attachmentsByMessage = attachmentRepository
                         .findByMessageIds(rawMessages.mapNotNull { it.id })
                         .groupBy({ it.first.idMessage }, { it.second.toEndpointDTO() })
@@ -287,6 +499,14 @@ fun Application.WebEndpointRouting() {
                                 attachments = message.id?.let { attachmentsByMessage[it] }.orEmpty()
                             )
                         }
+
+                    rawMessages
+                        .filter { message ->
+                            val member = members[message.idChatMember] ?: return@filter false
+                            member.idUser != currentUserId && message.viewedAt == null
+                        }
+                        .mapNotNull { it.id }
+                        .forEach { messageService.markAsViewed(it) }
 
                     call.respond(HttpStatusCode.OK, messages)
                 }
@@ -505,6 +725,7 @@ fun Application.WebEndpointRouting() {
                                 idChat = body.idChat,
                                 inviterUserId = currentUserId,
                                 inviteeUserId = body.inviteeUserId,
+                                idRole = body.idRole ?: 0,
                                 message = body.message,
                                 createdAt = Instant.now().toString()
                             )
