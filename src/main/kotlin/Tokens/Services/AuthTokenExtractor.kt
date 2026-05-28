@@ -10,5 +10,6 @@ object AuthTokenExtractor {
         }
 
         return call.request.headers["Auth-Token"]?.takeIf { it.isNotBlank() }
+            ?: call.request.queryParameters["token"]?.takeIf { it.isNotBlank() }
     }
 }

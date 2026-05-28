@@ -77,14 +77,18 @@ function applyDesignColors(colors) {
 async function api(path, options = {}) {
     const authRequired = options.authRequired !== false;
     const sendAuth = options.sendAuth !== false;
+    const isMultipart = options.body instanceof FormData;
     const requestOptions = { ...options };
     delete requestOptions.authRequired;
     delete requestOptions.sendAuth;
 
     const headers = {
-        "Content-Type": "application/json",
         ...(requestOptions.headers || {})
     };
+
+    if (!isMultipart) {
+        headers["Content-Type"] = "application/json";
+    }
 
     if (sendAuth && state.token) {
         headers.Authorization = `Bearer ${state.token}`;
@@ -484,13 +488,16 @@ async function createChat(form) {
 async function sendMessage(form) {
     const selectedChatId = Number(form.dataset.chatId);
     const body = Object.fromEntries(new FormData(form).entries());
+    const files = Array.from(form.elements.mediaFiles?.files || []);
 
     try {
+        const mediaFiles = files.length ? await uploadMediaFiles(files) : [];
         await api(`/web/chats/${selectedChatId}/messages`, {
             method: "POST",
             body: JSON.stringify({
-                value: body.value,
-                type: "text"
+                value: body.value || "",
+                type: "text",
+                mediaFileIds: mediaFiles.map(file => file.id)
             })
         });
         form.reset();
@@ -499,6 +506,19 @@ async function sendMessage(form) {
     } catch (error) {
         setMessage(error.message);
     }
+}
+
+async function uploadMediaFiles(files) {
+    const uploaded = [];
+    for (const file of files) {
+        const formData = new FormData();
+        formData.append("file", file);
+        uploaded.push(await api("/web/media", {
+            method: "POST",
+            body: formData
+        }));
+    }
+    return uploaded;
 }
 
 async function invitationAction(kind, id, action) {
@@ -808,7 +828,8 @@ function renderChats() {
                 </div>
                 <div class="composer">
                     <form class="button-row composer-form" data-form="message" data-chat-id="${selected?.id || ""}">
-                        <input class="input" name="value" placeholder="Сообщение" maxlength="4000" ${selected ? "required" : "disabled"}>
+                        <input class="input" name="value" placeholder="Сообщение" maxlength="4000" ${selected ? "" : "disabled"}>
+                        <input class="input file-input" name="mediaFiles" type="file" multiple accept=".jpg,.jpeg,.png,.webp,.gif,.mp4,.webm,.mov,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip" ${selected ? "" : "disabled"}>
                         <button class="btn" type="submit" ${selected ? "" : "disabled"}>Отправить</button>
                     </form>
                 </div>
@@ -821,10 +842,34 @@ function renderMessages(messages) {
     if (!messages.length) return `<div class="empty">Сообщений пока нет.</div>`;
     return messages.map(message => `
         <article class="bubble ${message.isMine ? "mine" : ""}">
-            <div>${escapeHtml(message.value)}</div>
+            ${message.value ? `<div>${escapeHtml(message.value)}</div>` : ""}
+            ${renderAttachments(message.attachments || [])}
             <div class="bubble-meta">${escapeHtml(message.sender?.name || `ID ${message.senderUserId}`)} · ${fmtDate(message.createdAt)}</div>
         </article>
     `).join("");
+}
+
+function renderAttachments(attachments) {
+    if (!attachments.length) return "";
+
+    return `<div class="attachments">${attachments.map(file => {
+        const url = escapeHtml(mediaContentUrl(file.url));
+        const name = escapeHtml(file.fileName);
+        if (file.mediaType === "photo") {
+            return `<a class="attachment-media" href="${url}" target="_blank" rel="noreferrer"><img src="${url}" alt="${name}"></a>`;
+        }
+        if (file.mediaType === "video") {
+            return `<video class="attachment-media" src="${url}" controls preload="metadata"></video>`;
+        }
+        return `<a class="attachment-file" href="${url}" target="_blank" rel="noreferrer" download="${name}">${name}</a>`;
+    }).join("")}</div>`;
+}
+
+function mediaContentUrl(url) {
+    if (!state.token) return url;
+
+    const separator = url.includes("?") ? "&" : "?";
+    return `${url}${separator}token=${encodeURIComponent(state.token)}`;
 }
 
 function renderSettings() {

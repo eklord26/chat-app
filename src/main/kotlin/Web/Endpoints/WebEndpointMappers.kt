@@ -5,12 +5,14 @@ import ChatMembers.DTO.ChatMember
 import Contacts.DTO.Contact
 import Invitations.DTO.ChatInvitation
 import Invitations.DTO.ContactInvitation
+import Media.DTO.MediaFile
 import Messages.DTO.Message
 import Web.DTO.ChatEndpointDTO
 import Web.DTO.ChatInvitationEndpointDTO
 import Web.DTO.ContactEndpointDTO
 import Web.DTO.ContactInvitationEndpointDTO
 import Web.DTO.MessageEndpointDTO
+import Web.DTO.MediaFileEndpointDTO
 import Web.DTO.UserEndpointDTO
 import com.example.Users.DTO.User
 
@@ -95,10 +97,25 @@ fun ChatInvitation.toEndpointDTO(
     )
 }
 
+fun MediaFile.toEndpointDTO(): MediaFileEndpointDTO {
+    val mediaId = id ?: error("Media file has no ID")
+    return MediaFileEndpointDTO(
+        id = mediaId,
+        fileName = originalFileName,
+        extension = extension,
+        mimeType = mimeType,
+        mediaType = mediaType,
+        sizeBytes = sizeBytes,
+        url = "/web/media/$mediaId/content",
+        createdAt = createdAt
+    )
+}
+
 fun Message.toEndpointDTO(
     member: ChatMember,
     sender: UserEndpointDTO?,
-    currentUserId: Int
+    currentUserId: Int,
+    attachments: List<MediaFileEndpointDTO> = emptyList()
 ): MessageEndpointDTO? {
     val messageId = id ?: return null
     return MessageEndpointDTO(
@@ -110,6 +127,7 @@ fun Message.toEndpointDTO(
         value = value,
         type = type?.string ?: "text",
         isMine = member.idUser == currentUserId,
+        attachments = attachments,
         createdAt = createdAt,
         viewedAt = viewedAt,
         deletedAt = deletedAt

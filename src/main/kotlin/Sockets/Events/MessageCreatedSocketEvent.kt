@@ -23,6 +23,7 @@ class MessageCreatedSocketEvent(
                     sender = result.sender,
                     value = message.value,
                     type = message.type?.string ?: "text",
+                    attachments = result.endpointMessage.attachments,
                     isEncrypted = message.isEncrypted,
                     encryptionAlgorithm = message.encryptionAlgorithm,
                     encryptionKeyVersion = message.encryptionKeyVersion,

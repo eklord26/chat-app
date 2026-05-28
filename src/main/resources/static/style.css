@@ -496,6 +496,45 @@ button {
     min-width: 0;
 }
 
+.file-input {
+    max-width: 260px;
+}
+
+.attachments {
+    display: grid;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.attachment-media {
+    display: block;
+    max-width: min(100%, 420px);
+    border-radius: 8px;
+    overflow: hidden;
+    background: #d8e0ea;
+}
+
+.attachment-media img,
+video.attachment-media {
+    display: block;
+    width: 100%;
+    max-height: 340px;
+    object-fit: contain;
+}
+
+.attachment-file {
+    display: inline-flex;
+    width: fit-content;
+    align-items: center;
+    min-height: 36px;
+    padding: 8px 10px;
+    border-radius: 7px;
+    background: #fff;
+    color: var(--primary-dark);
+    text-decoration: none;
+    font-weight: 700;
+}
+
 .settings-list {
     display: grid;
     gap: 12px;

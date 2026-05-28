@@ -15,6 +15,9 @@ import Invitations.DTO.ContactInvitationFilter
 import Invitations.Enums.InvitationStatusEnum
 import Invitations.Services.ChatInvitationService
 import Invitations.Services.ContactInvitationService
+import Media.Repositories.MessageAttachmentRepository
+import Media.Services.MediaService
+import Media.Services.MediaValidationException
 import Messages.DTO.MessageFilter
 import Messages.Services.MessageDeliveryException
 import Messages.Services.MessageDeliveryService
@@ -30,10 +33,14 @@ import Web.DTO.UpdateProfileEndpointDTO
 import Web.Services.DesignSettingsService
 import com.example.Users.Services.UserService
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.content.PartData
+import io.ktor.http.content.forEachPart
 import io.ktor.server.application.Application
 import io.ktor.server.request.*
 import io.ktor.server.response.respond
+import io.ktor.server.response.respondFile
 import io.ktor.server.routing.*
+import java.io.File
 import java.time.Instant
 
 fun Application.WebEndpointRouting() {
@@ -47,6 +54,8 @@ fun Application.WebEndpointRouting() {
     val chatAccessService = ChatAccessService(environment)
     val messageService = MessageService()
     val messageDeliveryService = MessageDeliveryService(environment)
+    val mediaService = MediaService(environment)
+    val attachmentRepository = MessageAttachmentRepository()
     val designSettingsService = DesignSettingsService(environment)
 
     suspend fun userById(id: Int) = userService.findById(id)?.toEndpointDTO()
@@ -140,6 +149,66 @@ fun Application.WebEndpointRouting() {
                 else call.respond(HttpStatusCode.NotFound, "Contacts not found")
             }
 
+            route("/media") {
+                post {
+                    val currentUserId = authGuard.requireUserId(call) ?: return@post
+                    var uploaded = false
+
+                    runCatching {
+                        val multipart = call.receiveMultipart()
+                        var response: Web.DTO.MediaFileEndpointDTO? = null
+
+                        multipart.forEachPart { part ->
+                            try {
+                                if (part is PartData.FileItem && !uploaded) {
+                                    response = mediaService.saveUploadedFile(currentUserId, part)
+                                    uploaded = true
+                                }
+                            } finally {
+                                part.dispose()
+                            }
+                        }
+
+                        response ?: throw MediaValidationException("MEDIA_FILE_REQUIRED", "Media file is required")
+                    }.onSuccess { media ->
+                        call.respond(HttpStatusCode.Created, media)
+                    }.onFailure { error ->
+                        val message = error.message ?: "Invalid media file"
+                        call.respond(HttpStatusCode.BadRequest, message)
+                    }
+                }
+
+                get("/{id}/content") {
+                    val currentUserId = authGuard.requireUserId(call) ?: return@get
+                    val mediaId = call.parameters["id"]?.toIntOrNull()
+                    if (mediaId == null) {
+                        call.respond(HttpStatusCode.BadRequest, "Invalid media ID")
+                        return@get
+                    }
+
+                    val media = mediaService.findById(mediaId)
+                    if (media == null || media.deletedAt != null) {
+                        call.respond(HttpStatusCode.NotFound, "Media file not found")
+                        return@get
+                    }
+
+                    val hasAccess = media.uploaderUserId == currentUserId ||
+                        attachmentRepository.hasUserAccessToMedia(currentUserId, mediaId)
+                    if (!hasAccess) {
+                        call.respond(HttpStatusCode.Forbidden, "Media file is not available")
+                        return@get
+                    }
+
+                    val file = File(media.storagePath)
+                    if (!file.exists()) {
+                        call.respond(HttpStatusCode.NotFound, "Media content not found")
+                        return@get
+                    }
+
+                    call.respondFile(file)
+                }
+            }
+
             route("/chats") {
                 get {
                     val currentUserId = authGuard.requireUserId(call) ?: return@get
@@ -200,17 +269,22 @@ fun Application.WebEndpointRouting() {
                     val members = activeMembers(chatId)
                         .mapNotNull { member -> member.id?.let { memberId -> memberId to member } }
                         .toMap()
-                    val messages = members.values.flatMap { member ->
+                    val rawMessages = members.values.flatMap { member ->
                         messageService.findByFilter(
                             MessageFilter(idChatMember = member.id, isDeleted = false)
                         ).filterNotNull()
                     }.sortedBy { it.createdAt }
-                        .mapNotNull { message ->
+                    val attachmentsByMessage = attachmentRepository
+                        .findByMessageIds(rawMessages.mapNotNull { it.id })
+                        .groupBy({ it.first.idMessage }, { it.second.toEndpointDTO() })
+
+                    val messages = rawMessages.mapNotNull { message ->
                             val member = members[message.idChatMember] ?: return@mapNotNull null
                             message.toEndpointDTO(
                                 member = member,
                                 sender = userById(member.idUser),
-                                currentUserId = currentUserId
+                                currentUserId = currentUserId,
+                                attachments = message.id?.let { attachmentsByMessage[it] }.orEmpty()
                             )
                         }
 
@@ -231,7 +305,8 @@ fun Application.WebEndpointRouting() {
                             chatId = chatId,
                             senderUserId = currentUserId,
                             value = body.value,
-                            type = body.type
+                            type = body.type,
+                            mediaFileIds = body.mediaFileIds
                         )
                     }.onSuccess { result ->
                         SocketBroadcaster.messageCreated(result)
