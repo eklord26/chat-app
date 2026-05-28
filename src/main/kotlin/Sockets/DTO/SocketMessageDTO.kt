@@ -1,5 +1,6 @@
 package Sockets.DTO
 
+import Web.DTO.MediaFileEndpointDTO
 import Web.DTO.UserEndpointDTO
 import kotlinx.serialization.Serializable
 
@@ -12,6 +13,7 @@ data class SocketMessageDTO(
     val sender: UserEndpointDTO? = null,
     val value: String,
     val type: String,
+    val attachments: List<MediaFileEndpointDTO> = emptyList(),
     val isEncrypted: Boolean = false,
     val encryptionAlgorithm: String? = null,
     val encryptionKeyVersion: Int? = null,

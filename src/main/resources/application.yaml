@@ -23,3 +23,7 @@ design:
     warning: "#a86f1d"
     error: "#c64646"
     success: "#17795f"
+media:
+  maxFileSizeMb: 30
+  serverStorageLimitMb: 5120
+  storagePath: "./uploads/media"

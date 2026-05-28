@@ -7,6 +7,9 @@ import Chats.DAO.ChatTable
 import Encryption.DAO.ChatEncryptionKeyTable
 import Log.Controllers.LogRouter
 import Logger.DAO.LogTable
+import Media.DAO.MediaFileTable
+import Media.DAO.MessageAttachmentTable
+import Messages.DAO.MessageTable
 import Registration.Controllers.RegistrationRouter
 import Roles.DAO.RoleTable
 import Tokens.DAO.TokenTable
@@ -125,7 +128,18 @@ class ApplicationTest {
         )
 
         transaction {
-            SchemaUtils.create(UserTable, TokenTable, RoleTable, ChatTable, ChatMembersTable, ChatEncryptionKeyTable, LogTable)
+            SchemaUtils.create(
+                UserTable,
+                TokenTable,
+                RoleTable,
+                ChatTable,
+                ChatMembersTable,
+                ChatEncryptionKeyTable,
+                MessageTable,
+                MediaFileTable,
+                MessageAttachmentTable,
+                LogTable
+            )
         }
     }
 
