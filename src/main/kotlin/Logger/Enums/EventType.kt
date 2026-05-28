@@ -5,6 +5,7 @@ enum class EventType {
     LOGOUT,
     NEW_CHAT,
     DELETE_CHAT,
+    NEW_MESSAGE,
     NEW_USER,
     DELETE_USER,
     START_CALL,

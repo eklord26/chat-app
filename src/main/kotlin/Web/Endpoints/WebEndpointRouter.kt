@@ -46,6 +46,7 @@ import io.ktor.http.content.PartData
 import io.ktor.http.content.forEachPart
 import io.ktor.server.application.Application
 import io.ktor.server.application.ApplicationCall
+import io.ktor.server.plugins.origin
 import io.ktor.server.request.*
 import io.ktor.server.response.respond
 import io.ktor.server.response.respondFile
@@ -53,6 +54,7 @@ import io.ktor.server.routing.*
 import java.io.File
 import java.time.Instant
 import java.time.LocalDateTime
+import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
 fun Application.WebEndpointRouting() {
@@ -94,12 +96,15 @@ fun Application.WebEndpointRouting() {
         )
     }
 
-    fun logDateValue(value: String): LocalDateTime? =
-        runCatching { LocalDateTime.parse(value) }.getOrNull()
+    fun logDateValue(value: String): Instant? =
+        runCatching { Instant.parse(value) }.getOrNull()
+            ?: runCatching { LocalDateTime.parse(value).toInstant(ZoneOffset.UTC) }.getOrNull()
 
-    fun requestDateValue(value: String?): LocalDateTime? =
+    fun requestDateValue(value: String?): Instant? =
         value?.takeIf { it.isNotBlank() }?.let {
-            runCatching { LocalDateTime.parse(it, DateTimeFormatter.ISO_LOCAL_DATE_TIME) }.getOrNull()
+            runCatching {
+                LocalDateTime.parse(it, DateTimeFormatter.ISO_LOCAL_DATE_TIME).toInstant(ZoneOffset.UTC)
+            }.getOrNull()
         }
     suspend fun activeMember(chatId: Int, userId: Int) = chatAccessService.activeMember(chatId, userId)
 
@@ -348,6 +353,7 @@ fun Application.WebEndpointRouting() {
                         call.respond(HttpStatusCode.Created, media)
                     }.onFailure { error ->
                         val message = error.message ?: "Invalid media file"
+                        audit(call, currentUserId, LogType.Error, EventType.ERROR_STORAGE, message)
                         call.respond(HttpStatusCode.BadRequest, message)
                     }
                 }
@@ -463,8 +469,12 @@ fun Application.WebEndpointRouting() {
                             unreadCount = 0
                         ) ?: error("Created chat was not found")
                     }
-                        .onSuccess { chat -> call.respond(HttpStatusCode.Created, chat) }
+                        .onSuccess { chat ->
+                            audit(call, currentUserId, LogType.Event, EventType.NEW_CHAT, "Created chat ${chat.id}: ${chat.name}")
+                            call.respond(HttpStatusCode.Created, chat)
+                        }
                         .onFailure {
+                            audit(call, currentUserId, LogType.Error, EventType.ERROR_MESSAGE, it.message ?: "Invalid chat data")
                             call.respond(HttpStatusCode.BadRequest, it.message ?: "Invalid chat data")
                         }
                 }
@@ -529,9 +539,17 @@ fun Application.WebEndpointRouting() {
                             mediaFileIds = body.mediaFileIds
                         )
                     }.onSuccess { result ->
+                        audit(
+                            call,
+                            currentUserId,
+                            LogType.Event,
+                            EventType.NEW_MESSAGE,
+                            "Sent message ${result.endpointMessage.id} to chat $chatId"
+                        )
                         SocketBroadcaster.messageCreated(result)
                         call.respond(HttpStatusCode.Created, result.endpointMessage)
                     }.onFailure { error ->
+                        audit(call, currentUserId, LogType.Error, EventType.ERROR_MESSAGE, error.message ?: "Message delivery failed")
                         if (error is MessageDeliveryException) {
                             val status = when (error.code) {
                                 "CHAT_ACCESS_DENIED" -> HttpStatusCode.Forbidden
@@ -605,6 +623,7 @@ fun Application.WebEndpointRouting() {
                                     invitation = invitation
                                 )
                             }
+                            audit(call, currentUserId, LogType.Event, EventType.ADD_CHAT_MEMBER, "Created contact invitation $newId")
                             call.respond(HttpStatusCode.Created, mapOf("id" to newId))
                         }
                         .onFailure {
@@ -628,6 +647,7 @@ fun Application.WebEndpointRouting() {
                                 invitation = invitation
                             )
                         }
+                        audit(call, currentUserId, LogType.Event, EventType.ADD_CHAT_MEMBER, "Accepted contact invitation $id")
                         call.respond(HttpStatusCode.OK)
                     } else call.respond(HttpStatusCode.NotFound)
                 }
@@ -645,6 +665,7 @@ fun Application.WebEndpointRouting() {
                                 invitation = invitation
                             )
                         }
+                        audit(call, currentUserId, LogType.Event, EventType.DELETE_CHAT_MEMBER, "Rejected contact invitation $id")
                         call.respond(HttpStatusCode.OK)
                     } else call.respond(HttpStatusCode.NotFound)
                 }
@@ -740,6 +761,7 @@ fun Application.WebEndpointRouting() {
                                     invitation = invitation
                                 )
                             }
+                            audit(call, currentUserId, LogType.Event, EventType.ADD_CHAT_MEMBER, "Created chat invitation $newId for chat ${body.idChat}")
                             call.respond(HttpStatusCode.Created, mapOf("id" to newId))
                         }
                         .onFailure {
@@ -763,6 +785,7 @@ fun Application.WebEndpointRouting() {
                                 invitation = invitation
                             )
                         }
+                        audit(call, currentUserId, LogType.Event, EventType.ADD_CHAT_MEMBER, "Accepted chat invitation $id")
                         call.respond(HttpStatusCode.OK)
                     } else call.respond(HttpStatusCode.NotFound)
                 }
@@ -780,6 +803,7 @@ fun Application.WebEndpointRouting() {
                                 invitation = invitation
                             )
                         }
+                        audit(call, currentUserId, LogType.Event, EventType.DELETE_CHAT_MEMBER, "Rejected chat invitation $id")
                         call.respond(HttpStatusCode.OK)
                     } else call.respond(HttpStatusCode.NotFound)
                 }

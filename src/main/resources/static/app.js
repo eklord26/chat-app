@@ -10,6 +10,8 @@ const state = {
     chats: [],
     roles: [],
     auditLogs: [],
+    auditOptions: { types: [], events: [] },
+    auditFilters: { type: "", event: "", userId: "", ip: "", dateFrom: "", dateTo: "" },
     messages: {},
     selectedChatId: Number(localStorage.getItem("lastChatId")) || null,
     focusMessageId: null,
@@ -172,7 +174,37 @@ async function loadAuditLogs() {
         state.auditLogs = [];
         return;
     }
-    state.auditLogs = await api("/web/admin/audit-logs").catch(() => []);
+    const params = new URLSearchParams();
+    Object.entries(state.auditFilters).forEach(([key, value]) => {
+        if (value) params.set(key, value);
+    });
+    const query = params.toString();
+    state.auditLogs = await api(`/web/admin/audit-logs${query ? `?${query}` : ""}`).catch(() => []);
+}
+
+async function loadAuditOptions() {
+    if (!state.me?.isAdmin || state.auditOptions.types.length) return;
+    state.auditOptions = await api("/web/admin/audit-options").catch(() => ({ types: [], events: [] }));
+}
+
+async function applyAuditFilters(form) {
+    const body = Object.fromEntries(new FormData(form).entries());
+    state.auditFilters = {
+        type: body.type || "",
+        event: body.event || "",
+        userId: body.userId || "",
+        ip: body.ip || "",
+        dateFrom: body.dateFrom || "",
+        dateTo: body.dateTo || ""
+    };
+    await loadAuditLogs();
+    render();
+}
+
+async function resetAuditFilters() {
+    state.auditFilters = { type: "", event: "", userId: "", ip: "", dateFrom: "", dateTo: "" };
+    await loadAuditLogs();
+    render();
 }
 
 async function login(form) {
@@ -409,7 +441,10 @@ async function setRoute(route) {
     state.route = route;
     state.message = "";
     if (route !== "create-chat") state.createChatPrefillContactId = null;
-    if (route === "administration") await loadAuditLogs();
+    if (route === "administration") {
+        await loadAuditOptions();
+        await loadAuditLogs();
+    }
     render();
 }
 
@@ -659,33 +694,60 @@ function renderAdministration() {
     return `
         <div class="view-title">
             <h1>Администрирование</h1>
-            <p>Журнал аудита системных событий.</p>
         </div>
         <section class="admin-audit">
             <div class="section-head">
-                <h2 class="section-title">Аудит</h2>
+                <h2 class="section-title">Журнал Аудита безопасности</h2>
                 <button class="btn secondary" data-action="refresh-audit">Обновить</button>
             </div>
+            <form class="audit-filters" data-form="audit-filters">
+                <label class="field"><span>Тип</span>
+                    <select class="input" name="type">
+                        <option value="">Все</option>
+                        ${state.auditOptions.types.map(type => `<option value="${escapeHtml(type)}" ${state.auditFilters.type === type ? "selected" : ""}>${escapeHtml(type)}</option>`).join("")}
+                    </select>
+                </label>
+                <label class="field"><span>Событие</span>
+                    <select class="input" name="event">
+                        <option value="">Все</option>
+                        ${state.auditOptions.events.map(event => `<option value="${escapeHtml(event)}" ${state.auditFilters.event === event ? "selected" : ""}>${escapeHtml(event)}</option>`).join("")}
+                    </select>
+                </label>
+                <label class="field"><span>ID пользователя</span><input class="input" name="userId" type="number" min="1" value="${escapeHtml(state.auditFilters.userId)}"></label>
+                <label class="field"><span>IP</span><input class="input" name="ip" value="${escapeHtml(state.auditFilters.ip)}"></label>
+                <label class="field"><span>С даты</span><input class="input" name="dateFrom" type="datetime-local" value="${escapeHtml(state.auditFilters.dateFrom)}"></label>
+                <label class="field"><span>По дату</span><input class="input" name="dateTo" type="datetime-local" value="${escapeHtml(state.auditFilters.dateTo)}"></label>
+                <div class="audit-filter-actions">
+                    <button class="btn" type="submit">Применить</button>
+                    <button class="btn secondary" type="button" data-action="reset-audit-filters">Сбросить</button>
+                </div>
+            </form>
             ${state.auditLogs.length ? `
-                <div class="audit-table">
-                    <div class="audit-row audit-head">
-                        <span>Дата</span>
-                        <span>Тип</span>
-                        <span>Событие</span>
-                        <span>Пользователь</span>
-                        <span>IP</span>
-                        <span>Описание</span>
-                    </div>
-                    ${state.auditLogs.map(log => `
-                        <article class="audit-row">
-                            <span>${fmtDate(log.date)}</span>
-                            <span><mark class="audit-type">${escapeHtml(log.type)}</mark></span>
-                            <span>${escapeHtml(log.event)}</span>
-                            <span>ID ${escapeHtml(log.userId)}</span>
-                            <span>${escapeHtml(log.ipAddress)}</span>
-                            <span>${escapeHtml(log.description)}</span>
-                        </article>
-                    `).join("")}
+                <div class="audit-table-wrap">
+                    <table class="audit-table">
+                        <thead>
+                            <tr>
+                                <th>Дата</th>
+                                <th>Тип</th>
+                                <th>Событие</th>
+                                <th>Пользователь</th>
+                                <th>IP</th>
+                                <th>Описание</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${state.auditLogs.map(log => `
+                                <tr>
+                                    <td>${fmtDate(log.date)}</td>
+                                    <td><mark class="audit-type">${escapeHtml(log.type)}</mark></td>
+                                    <td>${escapeHtml(log.event)}</td>
+                                    <td>ID ${escapeHtml(log.userId)}</td>
+                                    <td>${escapeHtml(log.ipAddress)}</td>
+                                    <td>${escapeHtml(log.description)}</td>
+                                </tr>
+                            `).join("")}
+                        </tbody>
+                    </table>
                 </div>
             ` : `<div class="empty">Записей аудита пока нет.</div>`}
         </section>
@@ -1014,6 +1076,7 @@ app.addEventListener("submit", async (event) => {
     if (formType === "password") await changePassword(form);
     if (formType === "chat-create") await createChat(form);
     if (formType === "message") await sendMessage(form);
+    if (formType === "audit-filters") await applyAuditFilters(form);
 });
 
 app.addEventListener("click", async (event) => {
@@ -1031,6 +1094,7 @@ app.addEventListener("click", async (event) => {
         await loadAuditLogs();
         render();
     }
+    if (target.dataset.action === "reset-audit-filters") await resetAuditFilters();
     if (target.dataset.action === "toggle-notifications") {
         state.notificationsOpen = !state.notificationsOpen;
         render();

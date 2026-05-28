@@ -141,6 +141,9 @@ button {
 
 .admin-audit {
     display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    align-content: start;
+    width: 100%;
     gap: 14px;
     height: calc(100vh - 140px);
     min-height: 0;
@@ -150,36 +153,79 @@ button {
     background: var(--panel);
 }
 
-.audit-table {
+.audit-table-wrap {
+    width: 100%;
     min-height: 0;
     overflow: auto;
     border: 1px solid var(--line);
     border-radius: 8px;
+    background: #fff;
 }
 
-.audit-row {
+.audit-filters {
     display: grid;
-    grid-template-columns: 150px 90px 150px 110px 130px minmax(220px, 1fr);
-    gap: 12px;
+    grid-template-columns: repeat(6, minmax(120px, 1fr));
+    gap: 10px;
+    align-items: end;
+}
+
+.audit-filter-actions {
+    grid-column: 1 / -1;
+    display: flex;
+    gap: 8px;
     align-items: center;
-    min-width: 940px;
-    padding: 10px 12px;
-    border-bottom: 1px solid var(--line);
-    background: #fff;
+    justify-content: flex-end;
+}
+
+.audit-table {
+    width: 100%;
+    min-width: 980px;
+    border-collapse: collapse;
+    table-layout: fixed;
     font-size: 13px;
 }
 
-.audit-row:last-child {
-    border-bottom: 0;
+.audit-table th,
+.audit-table td {
+    padding: 11px 12px;
+    border: 1px solid #c8d3df;
+    vertical-align: middle;
+    text-align: left;
+    overflow-wrap: anywhere;
 }
 
-.audit-head {
+.audit-table th {
     position: sticky;
     top: 0;
     z-index: 1;
     background: var(--panel-soft);
     color: var(--muted);
     font-weight: 800;
+}
+
+.audit-table th:nth-child(1),
+.audit-table td:nth-child(1) {
+    width: 165px;
+}
+
+.audit-table th:nth-child(2),
+.audit-table td:nth-child(2) {
+    width: 95px;
+}
+
+.audit-table th:nth-child(3),
+.audit-table td:nth-child(3) {
+    width: 160px;
+}
+
+.audit-table th:nth-child(4),
+.audit-table td:nth-child(4) {
+    width: 120px;
+}
+
+.audit-table th:nth-child(5),
+.audit-table td:nth-child(5) {
+    width: 140px;
 }
 
 .audit-type {
@@ -1183,6 +1229,18 @@ video.attachment-media {
         border-right: 0;
         border-bottom: 1px solid var(--line);
     }
+
+    .audit-filters {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .audit-filter-actions {
+        justify-content: stretch;
+    }
+
+    .audit-filter-actions .btn {
+        flex: 1 1 auto;
+    }
 }
 
 @media (max-width: 620px) {
@@ -1192,7 +1250,8 @@ video.attachment-media {
     }
 
     .sidebar-nav,
-    .contact-row {
+    .contact-row,
+    .audit-filters {
         grid-template-columns: 1fr;
     }
 }

@@ -22,6 +22,7 @@ class EventLogService: LogService() {
         Event(EventType.DELETE_USER, "Удаление пользователя"),
         Event(EventType.NEW_CHAT, "Создание нового чата"),
         Event(EventType.DELETE_CHAT, "Удаление чата"),
+        Event(EventType.NEW_MESSAGE, "Отправка сообщения в чат"),
         Event(EventType.USER_CHANGE_PASSWORD, "Пользователь сменяет пароль"),
         Event(EventType.START_CALL, "Начало звонка"),
         Event(EventType.END_CALL, "Конец звонка"),
