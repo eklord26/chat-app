@@ -5,8 +5,10 @@ import ChatMembers.DTO.ChatMember
 import Contacts.DTO.Contact
 import Invitations.DTO.ChatInvitation
 import Invitations.DTO.ContactInvitation
+import Logger.DTO.Log
 import Media.DTO.MediaFile
 import Messages.DTO.Message
+import Web.DTO.AuditLogEndpointDTO
 import Web.DTO.ChatEndpointDTO
 import Web.DTO.ChatInvitationEndpointDTO
 import Web.DTO.ContactEndpointDTO
@@ -42,7 +44,12 @@ fun Contact.toEndpointDTO(contactUser: UserEndpointDTO?): ContactEndpointDTO? {
     )
 }
 
-fun Chat.toEndpointDTO(ownerUser: UserEndpointDTO?, currentUserMemberId: Int? = null): ChatEndpointDTO? {
+fun Chat.toEndpointDTO(
+    ownerUser: UserEndpointDTO?,
+    currentUserMemberId: Int? = null,
+    participants: List<UserEndpointDTO> = emptyList(),
+    unreadCount: Int = 0
+): ChatEndpointDTO? {
     val chatId = id ?: return null
     return ChatEndpointDTO(
         id = chatId,
@@ -50,6 +57,8 @@ fun Chat.toEndpointDTO(ownerUser: UserEndpointDTO?, currentUserMemberId: Int? = 
         owner = owner,
         ownerUser = ownerUser,
         currentUserMemberId = currentUserMemberId,
+        participants = participants,
+        unreadCount = unreadCount,
         createdAt = createdAt,
         deletedAt = deletedAt
     )
@@ -118,6 +127,7 @@ fun Message.toEndpointDTO(
     attachments: List<MediaFileEndpointDTO> = emptyList()
 ): MessageEndpointDTO? {
     val messageId = id ?: return null
+    val isMine = member.idUser == currentUserId
     return MessageEndpointDTO(
         id = messageId,
         idChatMember = idChatMember,
@@ -126,10 +136,25 @@ fun Message.toEndpointDTO(
         sender = sender,
         value = value,
         type = type?.string ?: "text",
-        isMine = member.idUser == currentUserId,
+        isMine = isMine,
+        isUnread = !isMine && viewedAt == null,
         attachments = attachments,
         createdAt = createdAt,
         viewedAt = viewedAt,
         deletedAt = deletedAt
+    )
+}
+
+fun Log.toEndpointDTO(): AuditLogEndpointDTO? {
+    val logId = id ?: return null
+    return AuditLogEndpointDTO(
+        id = logId,
+        type = logType,
+        event = event,
+        userId = idUser,
+        date = date,
+        description = description,
+        ipAddress = ipAddress,
+        lifeTime = lifeTime
     )
 }

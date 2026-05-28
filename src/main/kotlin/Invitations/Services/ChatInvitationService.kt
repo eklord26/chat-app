@@ -21,9 +21,11 @@ class ChatInvitationService {
     suspend fun create(invitation: ChatInvitation): Int? {
         require(invitation.inviterUserId != invitation.inviteeUserId) { "Cannot invite yourself to chat" }
 
+        val roleId = invitation.idRole.takeIf { it > 0 } ?: roleService.participantRoleId()
+
         repository.create(
             invitation.copy(
-                idRole = roleService.participantRoleId(),
+                idRole = roleId,
                 status = InvitationStatusEnum.PENDING.value
             )
         )

@@ -40,5 +40,6 @@ class ErrorLogService: LogService() {
                 _events.find { _event: Event -> _event.type == event }!!.description
             } else description,
         )
+        _repository.create(_log)
     }
 }
