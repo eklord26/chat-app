@@ -139,6 +139,10 @@ fun Message.toEndpointDTO(
         isMine = isMine,
         isUnread = !isMine && viewedAt == null,
         attachments = attachments,
+        isEncrypted = isEncrypted,
+        encryptionAlgorithm = encryptionAlgorithm,
+        encryptionKeyVersion = encryptionKeyVersion,
+        encryptionNonce = encryptionNonce,
         createdAt = createdAt,
         viewedAt = viewedAt,
         deletedAt = deletedAt

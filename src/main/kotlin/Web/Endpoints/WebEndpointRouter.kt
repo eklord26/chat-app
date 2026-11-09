@@ -536,7 +536,11 @@ fun Application.WebEndpointRouting() {
                             senderUserId = currentUserId,
                             value = body.value,
                             type = body.type,
-                            mediaFileIds = body.mediaFileIds
+                            mediaFileIds = body.mediaFileIds,
+                            isEncrypted = body.isEncrypted,
+                            encryptionAlgorithm = body.encryptionAlgorithm,
+                            encryptionKeyVersion = body.encryptionKeyVersion,
+                            encryptionNonce = body.encryptionNonce
                         )
                     }.onSuccess { result ->
                         audit(

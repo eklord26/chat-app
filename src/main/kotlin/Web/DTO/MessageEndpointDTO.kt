@@ -14,6 +14,10 @@ data class MessageEndpointDTO(
     val isMine: Boolean,
     val isUnread: Boolean = false,
     val attachments: List<MediaFileEndpointDTO> = emptyList(),
+    val isEncrypted: Boolean = false,
+    val encryptionAlgorithm: String? = null,
+    val encryptionKeyVersion: Int? = null,
+    val encryptionNonce: String? = null,
     val createdAt: String,
     val viewedAt: String? = null,
     val deletedAt: String? = null

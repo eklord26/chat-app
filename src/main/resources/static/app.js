@@ -20,6 +20,7 @@ const state = {
     notifications: JSON.parse(localStorage.getItem("socketNotifications") || "[]"),
     notificationsOpen: false,
     invitationNotification: null,
+    theme: localStorage.getItem("theme") === "dark" ? "dark" : "light",
     message: "",
     messageType: "error",
     loading: false
@@ -27,17 +28,21 @@ const state = {
 
 let socket = null;
 let socketReconnectTimer = null;
+const chatEncryptionKeys = new Map();
 
 const navItems = [
-    { id: "chats", label: "Чаты" },
-    { id: "contacts", label: "Контакты" },
-    { id: "profile", label: "Профиль" },
-    { id: "create-chat", label: "Создать новый чат" }
+    { id: "chats", label: "Чаты", icon: "◎" },
+    { id: "contacts", label: "Контакты", icon: "@" },
+    { id: "profile", label: "Профиль", icon: "◯" },
+    { id: "settings", label: "Настройки", icon: "⚙" },
+    { id: "create-chat", label: "Создать новый чат", icon: "+" }
 ];
+
+applyTheme();
 
 function visibleNavItems() {
     return state.me?.isAdmin
-        ? [...navItems, { id: "administration", label: "Администрирование" }]
+        ? [...navItems, { id: "administration", label: "Администрирование", icon: "≡" }]
         : navItems;
 }
 
@@ -99,9 +104,117 @@ function fmtDate(value) {
         : date.toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" });
 }
 
+function bytesToBase64(bytes) {
+    let binary = "";
+    bytes.forEach(byte => {
+        binary += String.fromCharCode(byte);
+    });
+    return btoa(binary);
+}
+
+function base64ToBytes(value) {
+    const binary = atob(value);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) {
+        bytes[index] = binary.charCodeAt(index);
+    }
+    return bytes;
+}
+
+async function importAesKey(keyBase64) {
+    return crypto.subtle.importKey(
+        "raw",
+        base64ToBytes(keyBase64),
+        { name: "AES-GCM" },
+        false,
+        ["encrypt", "decrypt"]
+    );
+}
+
+async function getChatEncryptionKey(chatId, version = null) {
+    const cacheKey = `${chatId}:${version || "active"}`;
+    if (chatEncryptionKeys.has(cacheKey)) return chatEncryptionKeys.get(cacheKey);
+
+    const path = version
+        ? `/encryption/chats/${chatId}/keys/${version}`
+        : `/encryption/chats/${chatId}/key`;
+    const key = await api(path);
+    chatEncryptionKeys.set(cacheKey, key);
+    chatEncryptionKeys.set(`${chatId}:${key.version}`, key);
+    return key;
+}
+
+async function encryptMessageValue(chatId, value) {
+    if (!value) {
+        return {
+            value,
+            isEncrypted: false,
+            encryptionAlgorithm: null,
+            encryptionKeyVersion: null,
+            encryptionNonce: null
+        };
+    }
+
+    const key = await getChatEncryptionKey(chatId);
+    const cryptoKey = await importAesKey(key.key);
+    const nonce = crypto.getRandomValues(new Uint8Array(12));
+    const cipherBuffer = await crypto.subtle.encrypt(
+        { name: "AES-GCM", iv: nonce },
+        cryptoKey,
+        new TextEncoder().encode(value)
+    );
+
+    return {
+        value: bytesToBase64(new Uint8Array(cipherBuffer)),
+        isEncrypted: true,
+        encryptionAlgorithm: key.algorithm,
+        encryptionKeyVersion: key.version,
+        encryptionNonce: bytesToBase64(nonce)
+    };
+}
+
+async function decryptMessage(message) {
+    if (!message?.isEncrypted) return message;
+    if (!message.encryptionKeyVersion || !message.encryptionNonce) {
+        return { ...message, encryptedValue: message.value, value: "Не удалось расшифровать сообщение." };
+    }
+
+    try {
+        const key = await getChatEncryptionKey(message.idChat, message.encryptionKeyVersion);
+        const cryptoKey = await importAesKey(key.key);
+        const plainBuffer = await crypto.subtle.decrypt(
+            { name: "AES-GCM", iv: base64ToBytes(message.encryptionNonce) },
+            cryptoKey,
+            base64ToBytes(message.value)
+        );
+        return {
+            ...message,
+            encryptedValue: message.value,
+            value: new TextDecoder().decode(plainBuffer)
+        };
+    } catch {
+        return { ...message, encryptedValue: message.value, value: "Не удалось расшифровать сообщение." };
+    }
+}
+
+async function decryptMessages(messages) {
+    return Promise.all((messages || []).map(decryptMessage));
+}
+
 function setMessage(text, type = "error") {
     state.message = text;
     state.messageType = type;
+    render();
+}
+
+function applyTheme() {
+    document.documentElement.dataset.theme = state.theme;
+}
+
+function setTheme(theme) {
+    state.theme = theme === "dark" ? "dark" : "light";
+    localStorage.setItem("theme", state.theme);
+    applyTheme();
     render();
 }
 
@@ -166,7 +279,8 @@ async function loadAppData() {
 }
 
 async function loadMessages(chatId) {
-    state.messages[chatId] = await api(`/web/chats/${chatId}/messages`).catch(() => []);
+    const messages = await api(`/web/chats/${chatId}/messages`).catch(() => []);
+    state.messages[chatId] = await decryptMessages(messages);
 }
 
 async function loadAuditLogs() {
@@ -257,6 +371,7 @@ async function register(form) {
 
 function logout(renderAfter = true) {
     closeSocket();
+    chatEncryptionKeys.clear();
     state.token = null;
     state.userId = null;
     state.me = null;
@@ -406,12 +521,17 @@ async function sendMessage(form) {
 
     try {
         const mediaFiles = files.length ? await uploadMediaFiles(files) : [];
+        const encrypted = await encryptMessageValue(chatId, value || "");
         await api(`/web/chats/${chatId}/messages`, {
             method: "POST",
             body: JSON.stringify({
-                value: value || "",
+                value: encrypted.value,
                 type: "text",
-                mediaFileIds: mediaFiles.map(file => file.id)
+                mediaFileIds: mediaFiles.map(file => file.id),
+                isEncrypted: encrypted.isEncrypted,
+                encryptionAlgorithm: encrypted.encryptionAlgorithm,
+                encryptionKeyVersion: encrypted.encryptionKeyVersion,
+                encryptionNonce: encrypted.encryptionNonce
             })
         });
         form.reset();
@@ -497,7 +617,7 @@ async function handleSocketEvent(rawEvent) {
 
     if (event.event !== "message:new") return;
 
-    const message = event.data;
+    const message = await decryptMessage(event.data);
     const chatId = Number(message.idChat);
     if (!chatId) return;
     const isMine = Number(message.senderUserId) === state.userId;
@@ -652,7 +772,10 @@ function renderApp() {
                 ${state.notificationsOpen ? renderNotificationsPanel() : ""}
                 <nav class="sidebar-nav">
                     ${visibleNavItems().map(item => `
-                        <button class="nav-btn ${state.route === item.id ? "active" : ""}" data-route="${item.id}">${item.label}</button>
+                        <button class="nav-btn ${state.route === item.id ? "active" : ""}" data-route="${item.id}">
+                            <span class="nav-icon" aria-hidden="true">${item.icon}</span>
+                            <span class="nav-label">${item.label}</span>
+                        </button>
                     `).join("")}
                 </nav>
                 <button class="btn danger sidebar-logout" data-action="logout">Выйти</button>
@@ -671,6 +794,7 @@ function renderApp() {
 function renderView() {
     if (state.route === "contacts") return renderContacts();
     if (state.route === "profile") return renderProfile();
+    if (state.route === "settings") return renderSettings();
     if (state.route === "create-chat") return renderCreateChat();
     if (state.route === "administration" && state.me?.isAdmin) return renderAdministration();
     return renderChats();
@@ -758,20 +882,26 @@ function renderChats() {
     const selected = state.chats.find(chat => chat.id === state.selectedChatId);
     const messages = selected ? (state.messages[selected.id] || []) : [];
     return `
-        <section class="chat-workspace">
+        <section class="chat-workspace ${selected ? "has-selected" : ""}">
             <aside class="chat-list-pane">
-                <div class="section-head">
-                    <h1 class="section-title">Чаты</h1>
+                <div class="chat-list-head">
+                    <h1>Чаты</h1>
                     <button class="btn icon" title="Создать чат" data-route="create-chat">+</button>
                 </div>
                 <div class="chat-list">
                     ${state.chats.length ? state.chats.map(chat => `
                         <button class="chat-list-item ${selected?.id === chat.id ? "active" : ""}" data-chat-id="${chat.id}">
-                            <span class="chat-list-item-title">
-                                <strong>${escapeHtml(chat.name)}</strong>
+                            <span class="chat-avatar">${escapeHtml(chatInitial(chat.name))}</span>
+                            <span class="chat-list-item-main">
+                                <span class="chat-list-item-title">
+                                    <strong>${escapeHtml(chat.name)}</strong>
+                                    <small>${escapeHtml(chat.ownerUser?.name || "Чат")}</small>
+                                </span>
+                                <span class="chat-list-item-preview">${escapeHtml(chatParticipantSummary(chat))}</span>
+                            </span>
+                            <span class="chat-list-item-meta">
                                 ${chat.unreadCount ? `<span class="chat-unread-badge">${chat.unreadCount}</span>` : ""}
                             </span>
-                            <span>${escapeHtml(chat.ownerUser?.name || "Чат")}</span>
                         </button>
                     `).join("") : `<div class="empty">Чатов пока нет.</div>`}
                 </div>
@@ -779,7 +909,12 @@ function renderChats() {
             <section class="chat-conversation">
                 ${selected ? `
                     <header class="chat-header">
-                        <strong>${escapeHtml(selected.name)}</strong>
+                        <button class="btn ghost chat-back-button" type="button" data-action="back-to-chat-list" title="К списку чатов">‹</button>
+                        <span class="chat-avatar">${escapeHtml(chatInitial(selected.name))}</span>
+                        <span class="chat-header-title">
+                            <strong>${escapeHtml(selected.name)}</strong>
+                            <small>${escapeHtml(chatParticipantSummary(selected))}</small>
+                        </span>
                     </header>
                     ${renderChatParticipants(selected)}
                     <div class="messages">${renderMessages(messages)}</div>
@@ -801,6 +936,19 @@ function renderChats() {
             </section>
         </section>
     `;
+}
+
+function chatInitial(name) {
+    return String(name || "Ч")
+        .trim()
+        .charAt(0)
+        .toUpperCase();
+}
+
+function chatParticipantSummary(chat) {
+    const participants = participantNames(chat);
+    if (participants.length) return participants.slice(0, 3).join(", ");
+    return chat.ownerUser?.name || "Чат";
 }
 
 function renderMessages(messages) {
@@ -943,6 +1091,34 @@ function renderProfile() {
                 </form>
             </section>
         </div>
+    `;
+}
+
+function renderSettings() {
+    const isDark = state.theme === "dark";
+    return `
+        <div class="view-title">
+            <h1>Настройки</h1>
+            <p>Персональные параметры веб-интерфейса сохраняются в этом браузере.</p>
+        </div>
+        <section class="card settings-panel">
+            <div class="settings-list">
+                <div class="toggle-row">
+                    <div>
+                        <strong>Тёмная тема</strong>
+                        <div class="muted">${isDark ? "Сейчас используется тёмное оформление." : "Сейчас используется светлое оформление."}</div>
+                    </div>
+                    <button
+                        class="switch ${isDark ? "on" : ""}"
+                        type="button"
+                        data-action="toggle-theme"
+                        role="switch"
+                        aria-checked="${isDark}"
+                        title="Переключить тему"
+                    ></button>
+                </div>
+            </div>
+        </section>
     `;
 }
 
@@ -1090,6 +1266,12 @@ app.addEventListener("click", async (event) => {
     }
     if (target.dataset.route) await setRoute(target.dataset.route);
     if (target.dataset.action === "logout") logout();
+    if (target.dataset.action === "toggle-theme") setTheme(state.theme === "dark" ? "light" : "dark");
+    if (target.dataset.action === "back-to-chat-list") {
+        state.selectedChatId = null;
+        localStorage.removeItem("lastChatId");
+        render();
+    }
     if (target.dataset.action === "refresh-audit") {
         await loadAuditLogs();
         render();
